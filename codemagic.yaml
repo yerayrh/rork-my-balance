@@ -1,28 +1,4 @@
 workflows:
-  ios-simulator:
-    name: My Balance - iOS Simulator
-    max_build_duration: 120
-    instance_type: mac_mini_m2
-    working_directory: ios-my-balance
-    environment:
-      xcode: latest
-    scripts:
-      - name: Build for iOS Simulator
-        script: |
-          xcodebuild build \
-            -project MyBalance.xcodeproj \
-            -scheme MyBalance \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-    artifacts:
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.app
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.dSYM
-      - /tmp/xcodebuild_logs/*.log
-
   ios-unsigned-ipa:
     name: My Balance - Unsigned IPA for iPASide
     max_build_duration: 120
@@ -46,13 +22,24 @@ workflows:
       - name: Package unsigned IPA for iPASide
         script: |
           APP_PATH="$CM_BUILD_DIR/ios-my-balance/build/DerivedData/Build/Products/Release-iphoneos/MyBalance.app"
-          IPA_DIR="$CM_BUILD_DIR/ios-my-balance/build/ipa"
-          mkdir -p "$IPA_DIR/Payload"
-          ditto "$APP_PATH" "$IPA_DIR/Payload/MyBalance.app"
-          ditto -c -k --sequesterRsrc --keepParent "$IPA_DIR/Payload" \
-            "$CM_BUILD_DIR/ios-my-balance/build/MyBalance-unsigned.ipa"
+          OUTPUT_DIR="$CM_BUILD_DIR/build"
+          IPA_PATH="$OUTPUT_DIR/MyBalance-unsigned.ipa"
+          mkdir -p "$OUTPUT_DIR/Payload"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "No se encontró el producto compilado: $APP_PATH"
+            find "$CM_BUILD_DIR/ios-my-balance/build/DerivedData/Build/Products" -maxdepth 3 -print || true
+            exit 1
+          fi
+          ditto "$APP_PATH" "$OUTPUT_DIR/Payload/MyBalance.app"
+          ditto -c -k --sequesterRsrc --keepParent "$OUTPUT_DIR/Payload" "$IPA_PATH"
+          if [ ! -s "$IPA_PATH" ]; then
+            echo "No se creó el IPA en $IPA_PATH"
+            exit 1
+          fi
+          echo "IPA generado: $IPA_PATH"
+          unzip -l "$IPA_PATH"
     artifacts:
-      - ios-my-balance/build/MyBalance-unsigned.ipa
+      - build/MyBalance-unsigned.ipa
       - ios-my-balance/build/DerivedData/Build/Products/Release-iphoneos/*.app
       - ios-my-balance/build/DerivedData/Build/Products/Release-iphoneos/*.dSYM
       - /tmp/xcodebuild_logs/*.log
