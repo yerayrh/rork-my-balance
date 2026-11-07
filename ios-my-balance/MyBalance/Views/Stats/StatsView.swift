@@ -67,8 +67,8 @@ struct StatsView: View {
                 } else {
                     totalsHeader(totals, prev: prevTotals)
                     monthlyChart(chartBars, unit: chartUnit)
-                    breakdownSection("Gastos por categoría", symbol: "arrow.up.right", slices: expenses, total: totals.expense, tint: palette.negative)
-                    breakdownSection("Ingresos por categoría", symbol: "arrow.down.left", slices: incomes, total: totals.income, tint: palette.positive)
+                    breakdownSection("Gastos por categoría", symbol: "arrow.up.right", slices: expenses, total: totals.expense, tint: palette.negative, lookup: lookup)
+                    breakdownSection("Ingresos por categoría", symbol: "arrow.down.left", slices: incomes, total: totals.income, tint: palette.positive, lookup: lookup)
                 }
                 budgetsSection(lookup)
             }
@@ -302,7 +302,7 @@ struct StatsView: View {
         }
     }
 
-    private func breakdownSection(_ title: String, symbol: String, slices: [CategorySlice], total: Int, tint: Color) -> some View {
+    private func breakdownSection(_ title: String, symbol: String, slices: [CategorySlice], total: Int, tint: Color, lookup: Lookup) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: title)
             if slices.isEmpty {
