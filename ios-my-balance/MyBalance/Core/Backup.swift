@@ -215,7 +215,7 @@ enum Backup {
         guard meta["amount_cents"] == expectedVersion else { throw BackupError.unsupportedVersion }
 
         // Validated: replace everything atomically.
-        Seed.wipeAll(context)
+        try Seed.wipeAll(context)
         newCategories.forEach { context.insert($0) }
         newAccounts.forEach { context.insert($0) }
         newMovements.forEach { context.insert($0) }

@@ -10,7 +10,6 @@ struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(LockManager.self) private var lockManager
     @Environment(AppErrorCenter.self) private var errorCenter
-    @Environment(AppErrorCenter.self) private var errorCenter
 
     @Query private var accounts: [Account]
     @Query private var movements: [Movement]
