@@ -2,8 +2,24 @@ import Foundation
 import UserNotifications
 
 @MainActor
+private final class ForegroundNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
+}
+
+@MainActor
 enum AppNotifications {
     private static let center = UNUserNotificationCenter.current()
+    private static let foregroundDelegate = ForegroundNotificationDelegate()
+
+    static func configure() {
+        center.delegate = foregroundDelegate
+    }
 
     static func requestPermission() async -> Bool {
         let current = await center.notificationSettings()
@@ -17,6 +33,27 @@ enum AppNotifications {
         @unknown default:
             return false
         }
+    }
+
+    enum TestNotificationError: LocalizedError {
+        case permissionNotGranted
+
+        var errorDescription: String? {
+            "Permite las notificaciones de My Balance en Ajustes del iPhone y vuelve a intentarlo."
+        }
+    }
+
+    static func sendTestNotification() async throws {
+        configure()
+        let authorization = await center.notificationSettings().authorizationStatus
+        guard authorization == .authorized || authorization == .provisional || authorization == .ephemeral else {
+            throw TestNotificationError.permissionNotGranted
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "Prueba de notificación"
+        content.body = "My Balance puede mostrar avisos de presupuesto."
+        content.sound = .default
+        try await center.add(UNNotificationRequest(identifier: "budget-notification-test", content: content, trigger: nil))
     }
 
     static func cancelAll() async {
@@ -33,7 +70,13 @@ enum AppNotifications {
         categories: [MovementCategory],
         recurringRules: [RecurringRule]
     ) async {
+        configure()
         guard settings.notificationsEnabled else {
+            await cancelAll()
+            return
+        }
+        let authorization = await center.notificationSettings().authorizationStatus
+        guard authorization == .authorized || authorization == .provisional || authorization == .ephemeral else {
             await cancelAll()
             return
         }
@@ -72,8 +115,7 @@ enum AppNotifications {
                     content.body = "Has alcanzado el \(threshold.percent)% de tu presupuesto. Llevas \(Money.format(spent)) de \(Money.format(budget.limitCents))."
                 }
                 content.sound = .default
-                let monthKey = String(BudgetAlertThreshold.notificationKey(categoryID: category.id, monthStart: monthStart, threshold: threshold).split(separator: ".").dropFirst(2).joined(separator: "."))
-                let id = "budget-\(category.id.uuidString)-\(monthKey)-\(threshold.rawValue)"
+                let id = BudgetAlertThreshold.notificationRequestID(categoryID: category.id, monthStart: monthStart, threshold: threshold)
                 do {
                     try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
                     UserDefaults.standard.set(true, forKey: firedKey)

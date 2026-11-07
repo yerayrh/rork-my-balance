@@ -29,6 +29,7 @@ struct SettingsView: View {
     @State private var confirmLoadDemo = false
     @State private var showNotificationsExplanation = false
     @State private var showNotificationsDenied = false
+    @State private var notificationTestMessage: String?
 
     var body: some View {
         Form {
@@ -89,6 +90,14 @@ struct SettingsView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             Text("Puedes permitirlas en Ajustes del iPhone > Notificaciones > My Balance.")
+        }
+        .alert("Prueba de notificación", isPresented: Binding(
+            get: { notificationTestMessage != nil },
+            set: { if !$0 { notificationTestMessage = nil } }
+        )) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(notificationTestMessage ?? "")
         }
         .confirmationDialog("¿Borrar todos los datos?", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("Borrar todo", role: .destructive) {
@@ -276,6 +285,18 @@ struct SettingsView: View {
                 }
             ))
             if settings.notificationsEnabled {
+                Button {
+                    Task {
+                        do {
+                            try await AppNotifications.sendTestNotification()
+                            notificationTestMessage = "Notificación enviada. Si no aparece en pantalla, revisa los permisos y los avisos en Ajustes del iPhone > Notificaciones > My Balance."
+                        } catch {
+                            notificationTestMessage = error.localizedDescription
+                        }
+                    }
+                } label: {
+                    Label("Enviar notificación de prueba", systemImage: "bell.badge")
+                }
                 Toggle("Al alcanzar el 80 %", isOn: Binding(
                     get: { settings.budgetAlert80 },
                     set: { settings.budgetAlert80 = $0 }

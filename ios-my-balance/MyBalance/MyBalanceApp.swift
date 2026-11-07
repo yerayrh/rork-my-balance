@@ -54,7 +54,7 @@ struct RootView: View {
         let movementValues = movements.map {
             "\($0.id.uuidString):\($0.amountCents):\($0.date.timeIntervalSince1970):\($0.kindRaw):\($0.isExcluded):\($0.categoryID?.uuidString ?? "")"
         }.joined(separator: "|")
-        let budgetValues = budgets.map { "\($0.id.uuidString):\($0.limitCents)" }.joined(separator: "|")
+        let budgetValues = budgets.map { "\($0.id.uuidString):\($0.categoryID.uuidString):\($0.limitCents)" }.joined(separator: "|")
         let categoryValues = categories.map { "\($0.id.uuidString):\($0.name):\($0.colorHex):\($0.kindRaw)" }.joined(separator: "|")
         let ruleValues = recurringRules.map { "\($0.id.uuidString):\($0.nextOccurrence.timeIntervalSince1970):\($0.isActive)" }.joined(separator: "|")
         return [movementValues, budgetValues, categoryValues, ruleValues, String(settings.notificationsEnabled), String(settings.budgetAlert80), String(settings.budgetAlert100), String(settings.budgetAlertOver), String(settings.hasOnboarded), String(lockManager.isLocked), settings.currencyCode].joined(separator: "#")

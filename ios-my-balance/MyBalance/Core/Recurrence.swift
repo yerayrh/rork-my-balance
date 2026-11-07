@@ -59,7 +59,13 @@ enum BudgetAlertThreshold: Int, CaseIterable, Identifiable {
     static func notificationKey(categoryID: UUID, monthStart: Date, threshold: BudgetAlertThreshold, calendar: Calendar = .app) -> String {
         let parts = calendar.dateComponents([.year, .month], from: monthStart)
         let monthKey = String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
-        return "budgetNotification.fired.\(categoryID.uuidString).\(monthKey).\(threshold.rawValue)"
+        return "budgetNotification.v2.fired.\(categoryID.uuidString).\(monthKey).\(threshold.rawValue)"
+    }
+
+    static func notificationRequestID(categoryID: UUID, monthStart: Date, threshold: BudgetAlertThreshold, calendar: Calendar = .app) -> String {
+        let parts = calendar.dateComponents([.year, .month], from: monthStart)
+        let monthKey = String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
+        return "budget-\(categoryID.uuidString)-\(monthKey)-\(threshold.rawValue)"
     }
 
     static func crossed(spent: Int, limit: Int, enabled: Set<BudgetAlertThreshold>) -> [BudgetAlertThreshold] {
