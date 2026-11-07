@@ -1,26 +1,46 @@
 import SwiftUI
 import SwiftData
+import AppIntents
 
 @main
 struct MyBalanceApp: App {
     let container: ModelContainer
     @State private var settings: AppSettings
-    @State private var router = AppRouter()
-    @State private var lockManager = LockManager()
+    @State private var router: AppRouter
+    @State private var lockManager: LockManager
     @State private var errorCenter: AppErrorCenter
 
+    @MainActor
     init() {
+        let modelContainer: ModelContainer
         do {
-            container = try ModelContainer(
+            modelContainer = try ModelContainer(
                 for: Account.self, MovementCategory.self, Movement.self, Budget.self, RecurringRule.self
             )
         } catch {
             fatalError("No se pudo iniciar la base de datos: \(error)")
         }
+        container = modelContainer
         let s = AppSettings()
         settings = s
+        let appRouter = AppRouter()
+        _router = State(initialValue: appRouter)
+        let appLockManager = LockManager()
+        _lockManager = State(initialValue: appLockManager)
         let errorCenter = AppErrorCenter()
         _errorCenter = State(initialValue: errorCenter)
+
+        // Construct the dependency before passing it to AppDependencyManager.
+        // add(dependency:) takes an autoclosure; constructing it inline while
+        // reading App properties can capture the mutating initializer's self.
+        let shortcutStore = ShortcutFinanceStore(
+            container: modelContainer,
+            settings: s,
+            router: appRouter,
+            lockManager: appLockManager
+        )
+        AppDependencyManager.shared.add(dependency: shortcutStore)
+        MyBalanceAppShortcuts.updateAppShortcutParameters()
 
         // Seed default categories on first launch.
         let context = container.mainContext
@@ -66,7 +86,7 @@ struct RootView: View {
         let budgetValues = budgets.map { "\($0.id.uuidString):\($0.categoryID.uuidString):\($0.limitCents)" }.joined(separator: "|")
         let categoryValues = categories.map { "\($0.id.uuidString):\($0.name):\($0.colorHex):\($0.kindRaw)" }.joined(separator: "|")
         let ruleValues = recurringRules.map { "\($0.id.uuidString):\($0.nextOccurrence.timeIntervalSince1970):\($0.isActive)" }.joined(separator: "|")
-        return [movementValues, budgetValues, categoryValues, ruleValues, String(settings.notificationsEnabled), String(settings.budgetAlert80), String(settings.budgetAlert100), String(settings.budgetAlertOver), String(settings.hasOnboarded), String(lockManager.isLocked), settings.currencyCode].joined(separator: "#")
+        return [movementValues, budgetValues, categoryValues, ruleValues, String(settings.notificationsEnabled), String(settings.dailyReminderEnabled), String(settings.dailyReminderHour), String(settings.dailyReminderMinute), String(settings.budgetAlert80), String(settings.budgetAlert100), String(settings.budgetAlertOver), String(settings.hasOnboarded), String(lockManager.isLocked), settings.currencyCode].joined(separator: "#")
     }
 
     var body: some View {

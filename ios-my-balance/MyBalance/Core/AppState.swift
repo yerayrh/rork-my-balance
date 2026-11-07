@@ -12,6 +12,10 @@ final class AppSettings {
         static let onboarded = "hasOnboarded"
         static let logos = "showBankLogos"
         static let notifications = "notificationsEnabled"
+        static let dailyReminder = "dailyEntryReminderEnabled"
+        static let dailyReminderHour = "dailyEntryReminderHour"
+        static let dailyReminderMinute = "dailyEntryReminderMinute"
+        static let balancesVisible = "accountBalancesVisible"
         static let budgetAlert80 = "budgetAlert80"
         static let budgetAlert100 = "budgetAlert100"
         static let budgetAlertOver = "budgetAlertOver"
@@ -31,8 +35,11 @@ final class AppSettings {
     var lockEnabled: Bool { didSet { defaults.set(lockEnabled, forKey: Keys.lock) } }
     var hasOnboarded: Bool { didSet { defaults.set(hasOnboarded, forKey: Keys.onboarded) } }
     var showBankLogos: Bool { didSet { defaults.set(showBankLogos, forKey: Keys.logos) } }
-    var accountBalancesVisible = true
+    var accountBalancesVisible: Bool { didSet { defaults.set(accountBalancesVisible, forKey: Keys.balancesVisible) } }
     var notificationsEnabled: Bool { didSet { defaults.set(notificationsEnabled, forKey: Keys.notifications) } }
+    var dailyReminderEnabled: Bool { didSet { defaults.set(dailyReminderEnabled, forKey: Keys.dailyReminder) } }
+    var dailyReminderHour: Int { didSet { defaults.set(dailyReminderHour, forKey: Keys.dailyReminderHour) } }
+    var dailyReminderMinute: Int { didSet { defaults.set(dailyReminderMinute, forKey: Keys.dailyReminderMinute) } }
     var budgetAlert80: Bool { didSet { defaults.set(budgetAlert80, forKey: Keys.budgetAlert80) } }
     var budgetAlert100: Bool { didSet { defaults.set(budgetAlert100, forKey: Keys.budgetAlert100) } }
     var budgetAlertOver: Bool { didSet { defaults.set(budgetAlertOver, forKey: Keys.budgetAlertOver) } }
@@ -47,7 +54,11 @@ final class AppSettings {
         lockEnabled = d.bool(forKey: Keys.lock)
         hasOnboarded = d.bool(forKey: Keys.onboarded)
         showBankLogos = d.object(forKey: Keys.logos) as? Bool ?? true
+        accountBalancesVisible = d.object(forKey: Keys.balancesVisible) as? Bool ?? true
         notificationsEnabled = d.object(forKey: Keys.notifications) as? Bool ?? false
+        dailyReminderEnabled = d.object(forKey: Keys.dailyReminder) as? Bool ?? false
+        dailyReminderHour = d.object(forKey: Keys.dailyReminderHour) as? Int ?? 20
+        dailyReminderMinute = d.object(forKey: Keys.dailyReminderMinute) as? Int ?? 0
         budgetAlert80 = d.object(forKey: Keys.budgetAlert80) as? Bool ?? true
         budgetAlert100 = d.object(forKey: Keys.budgetAlert100) as? Bool ?? true
         budgetAlertOver = d.object(forKey: Keys.budgetAlertOver) as? Bool ?? false

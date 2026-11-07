@@ -29,7 +29,7 @@ enum AppNotifications {
         case .denied:
             return false
         case .notDetermined:
-            return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            return (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
         @unknown default:
             return false
         }
@@ -58,7 +58,7 @@ enum AppNotifications {
 
     static func cancelAll() async {
         let pending = await center.pendingNotificationRequests()
-        let ids = pending.map(\.identifier).filter { $0.hasPrefix("budget-") || $0.hasPrefix("recurring-") }
+        let ids = pending.map(\.identifier).filter { $0.hasPrefix("budget-") || $0.hasPrefix("recurring-") || $0 == dailyReminderID }
         center.removePendingNotificationRequests(withIdentifiers: ids)
         center.removeDeliveredNotifications(withIdentifiers: ids)
     }
@@ -83,6 +83,25 @@ enum AppNotifications {
 
         await refreshBudgetAlerts(settings: settings, movements: movements, budgets: budgets, categories: categories)
         await refreshRecurringReminders(recurringRules)
+        await refreshDailyEntryReminder(settings)
+    }
+
+    private static let dailyReminderID = "daily-entry-reminder"
+
+    private static func refreshDailyEntryReminder(_ settings: AppSettings) async {
+        center.removePendingNotificationRequests(withIdentifiers: [dailyReminderID])
+        center.removeDeliveredNotifications(withIdentifiers: [dailyReminderID])
+        guard settings.dailyReminderEnabled else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Añade tus movimientos"
+        content.body = "Dedica un momento a registrar tus gastos e ingresos en My Balance."
+        content.sound = .default
+        var time = DateComponents()
+        time.hour = min(max(settings.dailyReminderHour, 0), 23)
+        time.minute = min(max(settings.dailyReminderMinute, 0), 59)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: time, repeats: true)
+        try? await center.add(UNNotificationRequest(identifier: dailyReminderID, content: content, trigger: trigger))
     }
 
     private static func refreshBudgetAlerts(

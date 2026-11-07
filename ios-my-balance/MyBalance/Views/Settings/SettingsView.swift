@@ -81,11 +81,11 @@ struct SettingsView: View {
                 Text("Se han restaurado \(s.accounts) cuentas, \(s.categories) categorías, \(s.movements) movimientos, \(s.budgets) presupuestos y \(s.recurringRules) reglas recurrentes.")
             }
         }
-        .alert("Avisos de gastos y recurrencias", isPresented: $showNotificationsExplanation) {
+        .alert("Notificaciones de My Balance", isPresented: $showNotificationsExplanation) {
             Button("Continuar") { requestNotifications() }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("My Balance usará notificaciones locales para avisarte al acercarte o superar un presupuesto y cuando toque revisar un movimiento recurrente. No se envían datos a un servidor.")
+            Text("My Balance usará notificaciones locales para los avisos de presupuesto, movimientos recurrentes y el recordatorio diario que configures. No se envían datos a un servidor.")
         }
         .alert("Notificaciones no permitidas", isPresented: $showNotificationsDenied) {
             Button("Entendido", role: .cancel) {}
@@ -253,7 +253,7 @@ struct SettingsView: View {
 
     private var notificationsSection: some View {
         Section {
-            Toggle("Avisos de presupuestos y recurrencias", isOn: Binding(
+            Toggle("Activar notificaciones", isOn: Binding(
                 get: { settings.notificationsEnabled },
                 set: { enabled in
                     if enabled {
@@ -265,6 +265,17 @@ struct SettingsView: View {
                 }
             ))
             if settings.notificationsEnabled {
+                Toggle("Recordatorio diario de movimientos", isOn: Binding(
+                    get: { settings.dailyReminderEnabled },
+                    set: { settings.dailyReminderEnabled = $0 }
+                ))
+                if settings.dailyReminderEnabled {
+                    DatePicker(
+                        "Hora del recordatorio",
+                        selection: dailyReminderTime,
+                        displayedComponents: .hourAndMinute
+                    )
+                }
                 Button {
                     Task {
                         do {
@@ -293,8 +304,26 @@ struct SettingsView: View {
         } header: {
             Text("Notificaciones")
         } footer: {
-            Text("Los avisos se calculan en el iPhone. Cada umbral se notifica una sola vez por categoría y mes.")
+            Text("Los avisos y el recordatorio diario se programan en este iPhone. No se envían datos a servidores.")
         }
+    }
+
+    private var dailyReminderTime: Binding<Date> {
+        Binding(
+            get: {
+                Calendar.app.date(
+                    bySettingHour: settings.dailyReminderHour,
+                    minute: settings.dailyReminderMinute,
+                    second: 0,
+                    of: .now
+                ) ?? .now
+            },
+            set: { date in
+                let components = Calendar.app.dateComponents([.hour, .minute], from: date)
+                settings.dailyReminderHour = components.hour ?? 20
+                settings.dailyReminderMinute = components.minute ?? 0
+            }
+        )
     }
 
     private var recurringSection: some View {

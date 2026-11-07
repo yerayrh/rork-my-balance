@@ -124,4 +124,97 @@ struct MyBalanceTests {
         #expect(restoredMovements.first?.isRecurring == true)
         #expect(restoredMovements.first?.recurringRuleID == nil)
     }
+
+    @Test func shortcutRejectsMissingCategoryOrAccount() {
+        #expect(throws: ShortcutFinanceError.self) {
+            try ShortcutFinanceValidation.validateSelection(categoryID: nil, accountID: UUID())
+        }
+        #expect(throws: ShortcutFinanceError.self) {
+            try ShortcutFinanceValidation.validateSelection(categoryID: UUID(), accountID: nil)
+        }
+        #expect(throws: ShortcutFinanceError.self) {
+            try ShortcutFinanceValidation.validateSelection(categoryID: nil, accountID: nil)
+        }
+    }
+
+    @Test func shortcutRejectsInvalidAmountsAndConvertsValidAmountToCents() throws {
+        for invalid in [0.0, -1.0, 1.001, Double.infinity, Double.nan] {
+            #expect(throws: ShortcutFinanceError.self) {
+                try ShortcutFinanceValidation.amountCents(invalid)
+            }
+        }
+        #expect(try ShortcutFinanceValidation.amountCents(12.34) == 1_234)
+    }
+
+    @Test func shortcutListsExistingAccountsAndKindSpecificCategoriesAndSavesSelectedValues() throws {
+        let schema = Schema([Account.self, MovementCategory.self, Movement.self, Budget.self, RecurringRule.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = container.mainContext
+        let account = Account(name: "Cuenta diaria", colorHex: "#123456", iconName: "creditcard.fill", type: .checking, initialBalanceCents: 0, initialDate: date(2026, 1, 1))
+        let archived = Account(name: "Archivada", colorHex: "#123456", iconName: "creditcard.fill", type: .checking, initialBalanceCents: 0, initialDate: date(2026, 1, 1), isArchived: true)
+        let expense = MovementCategory(name: "Comida", icon: "fork.knife", colorHex: "#123456", kind: .expense)
+        let income = MovementCategory(name: "Nómina", icon: "briefcase.fill", colorHex: "#123456", kind: .income)
+        [account, archived].forEach(context.insert)
+        [expense, income].forEach(context.insert)
+        try context.save()
+
+        let settings = AppSettings()
+        settings.accountBalancesVisible = true
+        let lockManager = LockManager()
+        lockManager.isLocked = false
+        let store = ShortcutFinanceStore(container: container, settings: settings, router: AppRouter(), lockManager: lockManager)
+
+        #expect(Set(try store.accounts().map(\.id)) == [account.id])
+        #expect(Set(try store.categories(for: .expense).map(\.id)) == [expense.id])
+        #expect(Set(try store.categories(for: .income).map(\.id)) == [income.id])
+
+        try store.saveMovement(kind: .expense, amount: 8.75, categoryID: expense.id, accountID: account.id, date: date(2026, 11, 7), note: "Café")
+        let saved = try context.fetch(FetchDescriptor<Movement>())
+        #expect(saved.count == 1)
+        #expect(saved[0].accountID == account.id)
+        #expect(saved[0].categoryID == expense.id)
+        #expect(saved[0].kind == .expense)
+        #expect(saved[0].amountCents == 875)
+        #expect(saved[0].notes == "Café")
+
+        #expect(throws: ShortcutFinanceError.self) {
+            try store.saveMovement(kind: .expense, amount: 2, categoryID: income.id, accountID: account.id, date: date(2026, 11, 7), note: nil)
+        }
+        #expect(throws: ShortcutFinanceError.self) {
+            try store.saveMovement(kind: .expense, amount: 2, categoryID: expense.id, accountID: archived.id, date: date(2026, 11, 7), note: nil)
+        }
+
+        try store.saveMovement(kind: .income, amount: 1_250, categoryID: income.id, accountID: account.id, date: date(2026, 11, 7), note: nil)
+        let withIncome = try context.fetch(FetchDescriptor<Movement>())
+        #expect(withIncome.count == 2)
+        #expect(withIncome.contains { $0.kind == .income && $0.categoryID == income.id && $0.amountCents == 125_000 })
+    }
+
+    @Test func shortcutMonthlyExpenseReadUsesStatisticsRulesAndHonorsPrivacy() throws {
+        let schema = Schema([Account.self, MovementCategory.self, Movement.self, Budget.self, RecurringRule.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let accountID = UUID()
+        let movements = [
+            Movement(kind: .expense, amountCents: 2_500, title: "Gasto actual", date: date(2026, 11, 4), accountID: accountID),
+            Movement(kind: .expense, amountCents: 9_000, title: "Excluido", date: date(2026, 11, 5), accountID: accountID, isExcluded: true),
+            Movement(kind: .income, amountCents: 7_000, title: "Ingreso", date: date(2026, 11, 6), accountID: accountID),
+            Movement(kind: .expense, amountCents: 8_000, title: "Mes anterior", date: date(2026, 10, 31), accountID: accountID),
+        ]
+        movements.forEach { container.mainContext.insert($0) }
+        try container.mainContext.save()
+
+        let settings = AppSettings()
+        settings.accountBalancesVisible = true
+        let lockManager = LockManager()
+        lockManager.isLocked = false
+        let store = ShortcutFinanceStore(container: container, settings: settings, router: AppRouter(), lockManager: lockManager)
+        #expect(try store.currentMonthExpenses(now: date(2026, 11, 7)) == 2_500)
+
+        settings.accountBalancesVisible = false
+        #expect(throws: ShortcutFinanceError.self) {
+            try store.currentMonthExpenses(now: date(2026, 11, 7))
+        }
+    }
 }

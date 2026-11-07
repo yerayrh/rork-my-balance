@@ -74,7 +74,7 @@ struct OnboardingView: View {
                     .foregroundStyle(palette.accent)
             }
             VStack(spacing: 10) {
-                Text("Tus cuentas, tus números")
+                Text("Te damos la bienvenida a My Balance")
                     .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.center)
                 Text("Controla tus bancos, tarjetas y efectivo en una sola app. Sin cuentas de usuario: todo se queda en tu iPhone.")
