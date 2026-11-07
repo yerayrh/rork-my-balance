@@ -142,6 +142,7 @@ enum Seed {
 
     static func wipeAll(_ context: ModelContext) {
         ((try? context.fetch(FetchDescriptor<Movement>())) ?? []).forEach { context.delete($0) }
+        ((try? context.fetch(FetchDescriptor<RecurringRule>())) ?? []).forEach { context.delete($0) }
         ((try? context.fetch(FetchDescriptor<Account>())) ?? []).forEach { context.delete($0) }
         ((try? context.fetch(FetchDescriptor<Budget>())) ?? []).forEach { context.delete($0) }
         ((try? context.fetch(FetchDescriptor<MovementCategory>())) ?? []).forEach { context.delete($0) }

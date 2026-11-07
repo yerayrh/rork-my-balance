@@ -14,6 +14,7 @@ struct SettingsView: View {
     @Query private var movements: [Movement]
     @Query private var categories: [MovementCategory]
     @Query private var budgets: [Budget]
+    @Query(sort: \RecurringRule.nextOccurrence) private var recurringRules: [RecurringRule]
 
     @State private var editingName = ""
     @State private var showCSVExporter = false
@@ -26,6 +27,8 @@ struct SettingsView: View {
     @State private var confirmWipe = false
     @State private var confirmRemoveDemo = false
     @State private var confirmLoadDemo = false
+    @State private var showNotificationsExplanation = false
+    @State private var showNotificationsDenied = false
 
     var body: some View {
         Form {
@@ -34,6 +37,9 @@ struct SettingsView: View {
             categoriesSection
             currencySection
             securitySection
+            notificationsSection
+            widgetSection
+            recurringSection
             dataSection
             aboutSection
         }
@@ -71,8 +77,19 @@ struct SettingsView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             if let s = restoreSummary {
-                Text("Se han restaurado \(s.accounts) cuentas, \(s.categories) categorías, \(s.movements) movimientos y \(s.budgets) presupuestos.")
+                Text("Se han restaurado \(s.accounts) cuentas, \(s.categories) categorías, \(s.movements) movimientos, \(s.budgets) presupuestos y \(s.recurringRules) reglas recurrentes.")
             }
+        }
+        .alert("Avisos de gastos y recurrencias", isPresented: $showNotificationsExplanation) {
+            Button("Continuar") { requestNotifications() }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("My Balance usará notificaciones locales para avisarte al acercarte o superar un presupuesto y cuando toque revisar un movimiento recurrente. No se envían datos a un servidor.")
+        }
+        .alert("Notificaciones no permitidas", isPresented: $showNotificationsDenied) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text("Puedes permitirlas en Ajustes del iPhone > Notificaciones > My Balance.")
         }
         .confirmationDialog("¿Borrar todos los datos?", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("Borrar todo", role: .destructive) {
@@ -81,7 +98,7 @@ struct SettingsView: View {
                 Seed.ensureCategories(context)
             }
         } message: {
-            Text("Se eliminarán cuentas, categorías, movimientos y presupuestos. Después se restaurarán las categorías básicas. Esta acción no se puede deshacer.")
+            Text("Se eliminarán cuentas, categorías, movimientos, presupuestos y reglas recurrentes. Después se restaurarán las categorías básicas. Esta acción no se puede deshacer.")
         }
         .confirmationDialog("¿Eliminar los datos de demostración?", isPresented: $confirmRemoveDemo, titleVisibility: .visible) {
             Button("Eliminar datos de demostración", role: .destructive) {
@@ -246,6 +263,75 @@ struct SettingsView: View {
         }
     }
 
+    private var notificationsSection: some View {
+        Section {
+            Toggle("Avisos de presupuestos y recurrencias", isOn: Binding(
+                get: { settings.notificationsEnabled },
+                set: { enabled in
+                    if enabled {
+                        showNotificationsExplanation = true
+                    } else {
+                        settings.notificationsEnabled = false
+                        Task { await AppNotifications.cancelAll() }
+                    }
+                }
+            ))
+            if settings.notificationsEnabled {
+                Toggle("Al alcanzar el 80 %", isOn: Binding(
+                    get: { settings.budgetAlert80 },
+                    set: { settings.budgetAlert80 = $0 }
+                ))
+                Toggle("Al alcanzar el 100 %", isOn: Binding(
+                    get: { settings.budgetAlert100 },
+                    set: { settings.budgetAlert100 = $0 }
+                ))
+                Toggle("Al superar el presupuesto", isOn: Binding(
+                    get: { settings.budgetAlertOver },
+                    set: { settings.budgetAlertOver = $0 }
+                ))
+            }
+        } header: {
+            Text("Notificaciones")
+        } footer: {
+            Text("Los avisos se calculan en el iPhone. Cada umbral se notifica una sola vez por categoría y mes.")
+        }
+    }
+
+    private var widgetSection: some View {
+        Section {
+            Toggle("Mostrar datos en el widget", isOn: Binding(
+                get: { settings.widgetDataVisible },
+                set: { settings.widgetDataVisible = $0 }
+            ))
+        } header: {
+            Text("Widget")
+        } footer: {
+            Text("Al desactivarlo, los widgets ocultan importes y categorías. iOS también puede ocultar sus datos financieros cuando el dispositivo está bloqueado.")
+        }
+    }
+
+    private var recurringSection: some View {
+        Section {
+            NavigationLink {
+                RecurringRulesView()
+            } label: {
+                HStack {
+                    Label("Movimientos recurrentes", systemImage: "repeat")
+                    Spacer()
+                    Text("\(recurringRules.filter(\.isActive).count)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if movements.contains(where: { $0.isRecurring && $0.recurringRuleID == nil }) {
+                Text("Los movimientos antiguos marcados como recurrentes se conservan, pero no generan futuros cargos automáticamente.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Programación")
+        }
+    }
+
     private var dataSection: some View {
         let demoCount = accounts.filter(\.isDemo).count
         return Section {
@@ -255,6 +341,7 @@ struct SettingsView: View {
                     categories: categories,
                     movements: movements,
                     budgets: budgets,
+                    recurringRules: recurringRules,
                     settings: settings
                 )
                 exportFilename = "mybalance-copia-seguridad"
@@ -291,7 +378,7 @@ struct SettingsView: View {
         } header: {
             Text("Copia de seguridad y datos")
         } footer: {
-            Text("La copia de seguridad es un archivo CSV con todas tus cuentas, movimientos y presupuestos. Restaurarla sustituye lo que hay ahora en la app.")
+            Text("La copia de seguridad incluye cuentas, movimientos, presupuestos y reglas recurrentes. También se pueden restaurar copias antiguas. Restaurarla sustituye lo que hay ahora en la app.")
         }
     }
 
@@ -313,6 +400,14 @@ struct SettingsView: View {
     }
 
     // MARK: Restore
+
+    private func requestNotifications() {
+        Task {
+            let allowed = await AppNotifications.requestPermission()
+            settings.notificationsEnabled = allowed
+            if !allowed { showNotificationsDenied = true }
+        }
+    }
 
     private func restore(from result: Result<URL, Error>) {
         switch result {

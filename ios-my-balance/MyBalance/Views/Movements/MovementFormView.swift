@@ -23,10 +23,14 @@ struct MovementFormView: View {
     @State private var categoryID: UUID?
     @State private var isExcluded = false
     @State private var isRecurring = false
+    @State private var recurrenceFrequency: RecurrenceFrequency = .monthly
+    @State private var hasRecurrenceEndDate = false
+    @State private var recurrenceEndDate = Date().addingMonths(12)
     @State private var confirmDelete = false
     @State private var loaded = false
     @State private var showNewCategory = false
     @State private var categoryToDelete: MovementCategory?
+    @State private var saveError: String?
 
     private var isEditing: Bool { movement != nil }
 
@@ -92,6 +96,14 @@ struct MovementFormView: View {
                 }
             }
             .onAppear(perform: load)
+            .alert("No se pudo guardar", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("Entendido", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
+            }
         }
         .presentationDragIndicator(.visible)
     }
@@ -120,6 +132,7 @@ struct MovementFormView: View {
                     withAnimation(.snappy(duration: 0.25)) {
                         kind = newValue
                         categoryID = nil
+                        if newValue == .transfer { isRecurring = false }
                     }
                 }
             )) {
@@ -268,7 +281,30 @@ struct MovementFormView: View {
         Section {
             DatePicker("Fecha", selection: $date, displayedComponents: .date)
             Toggle("Excluir de estadísticas", isOn: $isExcluded)
-            Toggle("Se repite cada mes", isOn: $isRecurring)
+            if isEditing {
+                if movement?.isRecurring == true, movement?.recurringRuleID == nil {
+                    Label("Este movimiento tiene una marca recurrente antigua; no programa nuevos movimientos.", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if movement?.recurringRuleID != nil {
+                    Label("Este movimiento forma parte de una regla recurrente. Gestiona sus próximas fechas desde Ajustes.", systemImage: "repeat.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if kind != .transfer {
+                Toggle("Repetir movimiento", isOn: $isRecurring)
+                if isRecurring {
+                    Picker("Frecuencia", selection: $recurrenceFrequency) {
+                        ForEach(RecurrenceFrequency.allCases) { frequency in
+                            Text(frequency.label).tag(frequency)
+                        }
+                    }
+                    Toggle("Fecha de finalización", isOn: $hasRecurrenceEndDate)
+                    if hasRecurrenceEndDate {
+                        DatePicker("Finaliza el", selection: $recurrenceEndDate, in: date.addingDays(1)..., displayedComponents: .date)
+                    }
+                }
+            }
         } header: {
             Text("Detalles")
         } footer: {
@@ -313,6 +349,7 @@ struct MovementFormView: View {
             date = Date()
             accountID = presetAccountID ?? accounts.first?.id
             toAccountID = nil
+            recurrenceEndDate = Date().addingMonths(12)
         }
     }
 
@@ -341,11 +378,37 @@ struct MovementFormView: View {
                 toAccountID: kind == .transfer ? toAccountID : nil,
                 categoryID: kind == .transfer ? nil : categoryID,
                 isExcluded: isExcluded,
-                isRecurring: isRecurring
+                isRecurring: false
             )
+            if isRecurring, kind != .transfer,
+               let nextOccurrence = RecurrenceCalendar.nextDate(after: date, frequency: recurrenceFrequency, anchorDate: date),
+               !hasRecurrenceEndDate || nextOccurrence <= recurrenceEndDate {
+                let rule = RecurringRule(
+                    kind: kind,
+                    amountCents: cents,
+                    title: title.trimmed,
+                    notes: notes.trimmed,
+                    accountID: accountID,
+                    categoryID: categoryID,
+                    isExcluded: isExcluded,
+                    frequency: recurrenceFrequency,
+                    startDate: date,
+                    nextOccurrence: nextOccurrence,
+                    endDate: hasRecurrenceEndDate ? recurrenceEndDate : nil,
+                    anchorDay: Calendar.app.component(.day, from: date)
+                )
+                m.isRecurring = true
+                m.recurringRuleID = rule.id
+                m.recurrenceOccurrence = date
+                context.insert(rule)
+            }
             context.insert(m)
         }
-        try? context.save()
-        dismiss()
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 }

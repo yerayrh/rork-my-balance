@@ -11,6 +11,11 @@ final class AppSettings {
         static let lock = "lockEnabled"
         static let onboarded = "hasOnboarded"
         static let logos = "showBankLogos"
+        static let notifications = "notificationsEnabled"
+        static let budgetAlert80 = "budgetAlert80"
+        static let budgetAlert100 = "budgetAlert100"
+        static let budgetAlertOver = "budgetAlertOver"
+        static let widgetData = "widgetDataVisible"
     }
 
     private let defaults = UserDefaults.standard
@@ -28,6 +33,11 @@ final class AppSettings {
     var hasOnboarded: Bool { didSet { defaults.set(hasOnboarded, forKey: Keys.onboarded) } }
     var showBankLogos: Bool { didSet { defaults.set(showBankLogos, forKey: Keys.logos) } }
     var accountBalancesVisible = true
+    var notificationsEnabled: Bool { didSet { defaults.set(notificationsEnabled, forKey: Keys.notifications) } }
+    var budgetAlert80: Bool { didSet { defaults.set(budgetAlert80, forKey: Keys.budgetAlert80) } }
+    var budgetAlert100: Bool { didSet { defaults.set(budgetAlert100, forKey: Keys.budgetAlert100) } }
+    var budgetAlertOver: Bool { didSet { defaults.set(budgetAlertOver, forKey: Keys.budgetAlertOver) } }
+    var widgetDataVisible: Bool { didSet { defaults.set(widgetDataVisible, forKey: Keys.widgetData) } }
 
     init() {
         let d = UserDefaults.standard
@@ -39,6 +49,11 @@ final class AppSettings {
         lockEnabled = d.bool(forKey: Keys.lock)
         hasOnboarded = d.bool(forKey: Keys.onboarded)
         showBankLogos = d.object(forKey: Keys.logos) as? Bool ?? true
+        notificationsEnabled = d.object(forKey: Keys.notifications) as? Bool ?? false
+        budgetAlert80 = d.object(forKey: Keys.budgetAlert80) as? Bool ?? true
+        budgetAlert100 = d.object(forKey: Keys.budgetAlert100) as? Bool ?? true
+        budgetAlertOver = d.object(forKey: Keys.budgetAlertOver) as? Bool ?? false
+        widgetDataVisible = d.object(forKey: Keys.widgetData) as? Bool ?? true
         Money.symbol = CurrencyInfo.find(code).symbol
     }
 
@@ -59,6 +74,7 @@ enum AppTab: Hashable {
 @Observable
 final class AppRouter {
     var tab: AppTab = .home
+    var quickAddRequestID: UUID?
 }
 
 @Observable

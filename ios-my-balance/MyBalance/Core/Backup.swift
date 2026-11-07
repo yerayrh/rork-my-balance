@@ -99,15 +99,21 @@ struct RestoreSummary {
     let categories: Int
     let movements: Int
     let budgets: Int
+    let recurringRules: Int
 }
 
 enum Backup {
     static let marker = "mybalance-backup"
-    static let version = "1"
-    static let header = [
+    static let version = "2"
+    private static let legacyVersion = "1"
+    static let legacyHeader = [
         "record", "id", "name", "kind", "amount_cents", "date", "account_id", "to_account_id",
         "category_id", "bank_id", "icon", "color", "account_type", "notes", "excluded",
         "recurring", "sort_order", "archived", "created_at", "demo",
+    ]
+    static let header = legacyHeader + [
+        "recurring_rule_id", "recurrence_occurrence", "frequency", "start_date",
+        "next_occurrence", "end_date", "rule_active", "anchor_day",
     ]
 
     private static let iso: ISO8601DateFormatter = {
@@ -124,7 +130,7 @@ enum Backup {
 
     // MARK: Export full backup
 
-    static func makeBackup(accounts: [Account], categories: [MovementCategory], movements: [Movement], budgets: [Budget], settings: AppSettings) -> String {
+    static func makeBackup(accounts: [Account], categories: [MovementCategory], movements: [Movement], budgets: [Budget], recurringRules: [RecurringRule], settings: AppSettings) -> String {
         var lines: [String] = [CSV.row(header, delimiter: ",")]
         func line(_ dict: [String: String]) {
             lines.append(CSV.row(header.map { dict[$0] ?? "" }, delimiter: ","))
@@ -137,10 +143,13 @@ enum Backup {
             line(["record": "account", "id": a.id.uuidString, "name": a.name, "amount_cents": String(a.initialBalanceCents), "date": d(a.initialDate), "bank_id": a.bankID ?? "", "icon": a.iconName, "color": a.colorHex, "account_type": a.typeRaw, "sort_order": String(a.sortOrder), "archived": b(a.isArchived), "created_at": d(a.createdAt), "demo": b(a.isDemo)])
         }
         for m in movements {
-            line(["record": "movement", "id": m.id.uuidString, "name": m.title, "kind": m.kindRaw, "amount_cents": String(m.amountCents), "date": d(m.date), "account_id": m.accountID.uuidString, "to_account_id": m.toAccountID?.uuidString ?? "", "category_id": m.categoryID?.uuidString ?? "", "notes": m.notes, "excluded": b(m.isExcluded), "recurring": b(m.isRecurring), "created_at": d(m.createdAt), "demo": b(m.isDemo)])
+            line(["record": "movement", "id": m.id.uuidString, "name": m.title, "kind": m.kindRaw, "amount_cents": String(m.amountCents), "date": d(m.date), "account_id": m.accountID.uuidString, "to_account_id": m.toAccountID?.uuidString ?? "", "category_id": m.categoryID?.uuidString ?? "", "notes": m.notes, "excluded": b(m.isExcluded), "recurring": b(m.isRecurring), "created_at": d(m.createdAt), "demo": b(m.isDemo), "recurring_rule_id": m.recurringRuleID?.uuidString ?? "", "recurrence_occurrence": m.recurrenceOccurrence.map(d) ?? ""])
         }
         for bu in budgets {
             line(["record": "budget", "id": bu.id.uuidString, "amount_cents": String(bu.limitCents), "category_id": bu.categoryID.uuidString, "created_at": d(bu.createdAt), "demo": b(bu.isDemo)])
+        }
+        for rule in recurringRules {
+            line(["record": "recurring_rule", "id": rule.id.uuidString, "name": rule.title, "kind": rule.kindRaw, "amount_cents": String(rule.amountCents), "account_id": rule.accountID.uuidString, "category_id": rule.categoryID?.uuidString ?? "", "notes": rule.notes, "excluded": b(rule.isExcluded), "frequency": rule.frequencyRaw, "start_date": d(rule.startDate), "next_occurrence": d(rule.nextOccurrence), "end_date": rule.endDate.map(d) ?? "", "rule_active": b(rule.isActive), "anchor_day": String(rule.anchorDay), "created_at": d(rule.createdAt)])
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -149,19 +158,21 @@ enum Backup {
 
     static func restore(_ text: String, context: ModelContext, settings: AppSettings) throws -> RestoreSummary {
         let rows = CSV.parse(text, delimiter: ",")
-        guard let head = rows.first, head == header else { throw BackupError.invalidFormat }
+        guard let head = rows.first, head == header || head == legacyHeader else { throw BackupError.invalidFormat }
+        let inputHeader = head
 
         var newAccounts: [Account] = []
         var newCategories: [MovementCategory] = []
         var newMovements: [Movement] = []
         var newBudgets: [Budget] = []
+        var newRules: [RecurringRule] = []
         var meta: [String: String]?
 
         for (index, raw) in rows.dropFirst().enumerated() {
             let rowNumber = index + 2
-            guard raw.count == header.count else { throw BackupError.badRow(rowNumber) }
+            guard raw.count == inputHeader.count else { throw BackupError.badRow(rowNumber) }
             var r: [String: String] = [:]
-            for (i, key) in header.enumerated() { r[key] = raw[i] }
+            for (i, key) in inputHeader.enumerated() { r[key] = raw[i] }
             let record = r["record"] ?? ""
             func uuid(_ k: String) -> UUID? { UUID(uuidString: r[k] ?? "") }
             func int(_ k: String) -> Int? { Int(r[k] ?? "") }
@@ -179,17 +190,29 @@ enum Backup {
                 newAccounts.append(Account(id: id, name: r["name"] ?? "Cuenta", bankID: bank.isEmpty ? nil : bank, colorHex: r["color"] ?? "#2F5BFF", iconName: r["icon"] ?? "building.columns.fill", type: AccountType(rawValue: r["account_type"] ?? "") ?? .other, initialBalanceCents: cents, initialDate: date, isArchived: flag("archived"), sortOrder: int("sort_order") ?? 0, isDemo: flag("demo"), createdAt: parseDate(r["created_at"] ?? "") ?? .now))
             case "movement":
                 guard let id = uuid("id"), let kind = MovementKind(rawValue: r["kind"] ?? ""), let cents = int("amount_cents"), cents > 0, let date = parseDate(r["date"] ?? ""), let account = uuid("account_id") else { throw BackupError.badRow(rowNumber) }
-                newMovements.append(Movement(id: id, kind: kind, amountCents: cents, title: r["name"] ?? "", notes: r["notes"] ?? "", date: date, accountID: account, toAccountID: uuid("to_account_id"), categoryID: uuid("category_id"), isExcluded: flag("excluded"), isRecurring: flag("recurring"), isDemo: flag("demo"), createdAt: parseDate(r["created_at"] ?? "") ?? .now))
+                newMovements.append(Movement(id: id, kind: kind, amountCents: cents, title: r["name"] ?? "", notes: r["notes"] ?? "", date: date, accountID: account, toAccountID: uuid("to_account_id"), categoryID: uuid("category_id"), isExcluded: flag("excluded"), isRecurring: flag("recurring"), recurringRuleID: uuid("recurring_rule_id"), recurrenceOccurrence: parseDate(r["recurrence_occurrence"] ?? ""), isDemo: flag("demo"), createdAt: parseDate(r["created_at"] ?? "") ?? .now))
             case "budget":
                 guard let id = uuid("id"), let cents = int("amount_cents"), let cat = uuid("category_id") else { throw BackupError.badRow(rowNumber) }
                 newBudgets.append(Budget(id: id, categoryID: cat, limitCents: cents, isDemo: flag("demo"), createdAt: parseDate(r["created_at"] ?? "") ?? .now))
+            case "recurring_rule":
+                guard let id = uuid("id"),
+                      let kind = MovementKind(rawValue: r["kind"] ?? ""), kind != .transfer,
+                      let cents = int("amount_cents"), cents > 0,
+                      let account = uuid("account_id"),
+                      let frequency = RecurrenceFrequency(rawValue: r["frequency"] ?? ""),
+                      let start = parseDate(r["start_date"] ?? ""),
+                      let next = parseDate(r["next_occurrence"] ?? ""),
+                      let anchorDay = int("anchor_day"), (1...31).contains(anchorDay) else { throw BackupError.badRow(rowNumber) }
+                let end = (r["end_date"] ?? "").isEmpty ? nil : parseDate(r["end_date"] ?? "")
+                newRules.append(RecurringRule(id: id, kind: kind, amountCents: cents, title: r["name"] ?? "", notes: r["notes"] ?? "", accountID: account, categoryID: uuid("category_id"), isExcluded: flag("excluded"), frequency: frequency, startDate: start, nextOccurrence: next, endDate: end, anchorDay: anchorDay, isActive: flag("rule_active"), createdAt: parseDate(r["created_at"] ?? "") ?? .now))
             default:
                 throw BackupError.badRow(rowNumber)
             }
         }
 
         guard let meta, meta["kind"] == marker else { throw BackupError.invalidFormat }
-        guard meta["amount_cents"] == version else { throw BackupError.unsupportedVersion }
+        let expectedVersion = inputHeader == legacyHeader ? legacyVersion : version
+        guard meta["amount_cents"] == expectedVersion else { throw BackupError.unsupportedVersion }
 
         // Validated: replace everything atomically.
         Seed.wipeAll(context)
@@ -197,13 +220,14 @@ enum Backup {
         newAccounts.forEach { context.insert($0) }
         newMovements.forEach { context.insert($0) }
         newBudgets.forEach { context.insert($0) }
+        newRules.forEach { context.insert($0) }
         try context.save()
 
         settings.userName = meta["name"] ?? ""
         if let code = meta["notes"], !code.isEmpty { settings.currencyCode = code }
         UserDefaults.standard.set(true, forKey: Seed.seededKey)
 
-        return RestoreSummary(accounts: newAccounts.count, categories: newCategories.count, movements: newMovements.count, budgets: newBudgets.count)
+        return RestoreSummary(accounts: newAccounts.count, categories: newCategories.count, movements: newMovements.count, budgets: newBudgets.count, recurringRules: newRules.count)
     }
 
     // MARK: Human-readable movements CSV (Spanish Excel style)

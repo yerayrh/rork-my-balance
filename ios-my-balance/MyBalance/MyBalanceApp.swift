@@ -11,7 +11,7 @@ struct MyBalanceApp: App {
     init() {
         do {
             container = try ModelContainer(
-                for: Account.self, MovementCategory.self, Movement.self, Budget.self
+                for: Account.self, MovementCategory.self, Movement.self, Budget.self, RecurringRule.self
             )
         } catch {
             fatalError("No se pudo iniciar la base de datos: \(error)")
@@ -44,6 +44,21 @@ struct RootView: View {
     @Environment(AppRouter.self) private var router
     @Environment(LockManager.self) private var lockManager
     @Environment(\.palette) private var palette
+    @Query(sort: \Movement.date, order: .reverse) private var movements: [Movement]
+    @Query private var budgets: [Budget]
+    @Query(sort: \MovementCategory.sortOrder) private var categories: [MovementCategory]
+    @Query(sort: \RecurringRule.nextOccurrence) private var recurringRules: [RecurringRule]
+    @State private var reviewRuleID: UUID?
+
+    private var localFeatureSignature: String {
+        let movementValues = movements.map {
+            "\($0.id.uuidString):\($0.amountCents):\($0.date.timeIntervalSince1970):\($0.kindRaw):\($0.isExcluded):\($0.categoryID?.uuidString ?? "")"
+        }.joined(separator: "|")
+        let budgetValues = budgets.map { "\($0.id.uuidString):\($0.limitCents)" }.joined(separator: "|")
+        let categoryValues = categories.map { "\($0.id.uuidString):\($0.name):\($0.colorHex):\($0.kindRaw)" }.joined(separator: "|")
+        let ruleValues = recurringRules.map { "\($0.id.uuidString):\($0.nextOccurrence.timeIntervalSince1970):\($0.isActive)" }.joined(separator: "|")
+        return [movementValues, budgetValues, categoryValues, ruleValues, String(settings.widgetDataVisible), String(settings.notificationsEnabled), String(settings.budgetAlert80), String(settings.budgetAlert100), String(settings.budgetAlertOver), String(settings.hasOnboarded), String(lockManager.isLocked), settings.currencyCode].joined(separator: "#")
+    }
 
     var body: some View {
         @Bindable var router = router
@@ -67,6 +82,18 @@ struct RootView: View {
                     .tag(AppTab.accounts)
             }
             .tint(palette.accent)
+            .task { await refreshLocalFeatures() }
+            .onChange(of: localFeatureSignature) { _, _ in
+                Task { await refreshLocalFeatures() }
+            }
+            .sheet(isPresented: Binding(
+                get: { reviewRuleID != nil },
+                set: { if !$0 { reviewRuleID = nil } }
+            ), onDismiss: { reviewRuleID = nil }) {
+                if let id = reviewRuleID, let rule = recurringRules.first(where: { $0.id == id }) {
+                    RecurringReviewView(rule: rule)
+                }
+            }
 
             if !settings.hasOnboarded {
                 OnboardingView()
@@ -84,6 +111,48 @@ struct RootView: View {
             if phase == .background, settings.lockEnabled {
                 lockManager.isLocked = true
             }
+            if phase == .active {
+                Task {
+                    await routeWidgetAction()
+                    await refreshLocalFeatures()
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshLocalFeatures() async {
+        WidgetSnapshotStore.publish(
+            movements: movements,
+            budgets: budgets,
+            categories: categories,
+            isVisible: settings.widgetDataVisible
+        )
+        await AppNotifications.refresh(
+            settings: settings,
+            movements: movements,
+            budgets: budgets,
+            categories: categories,
+            recurringRules: recurringRules
+        )
+        guard settings.hasOnboarded, !lockManager.isLocked, reviewRuleID == nil else { return }
+        reviewRuleID = recurringRules.first(where: { rule in
+            guard rule.isActive, rule.nextOccurrence <= .now else { return false }
+            return rule.endDate.map { rule.nextOccurrence <= $0 } ?? true
+        })?.id
+    }
+
+    @MainActor
+    private func routeWidgetAction() async {
+        guard let defaults = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID) else { return }
+        if defaults.bool(forKey: WidgetSnapshotStore.openBudgetsKey) {
+            defaults.set(false, forKey: WidgetSnapshotStore.openBudgetsKey)
+            router.tab = .budgets
+        }
+        if defaults.bool(forKey: WidgetSnapshotStore.quickAddKey) {
+            defaults.set(false, forKey: WidgetSnapshotStore.quickAddKey)
+            router.tab = .home
+            router.quickAddRequestID = UUID()
         }
     }
 }

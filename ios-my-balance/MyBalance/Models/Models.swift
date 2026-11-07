@@ -180,6 +180,8 @@ final class Movement {
     var categoryID: UUID?
     var isExcluded: Bool
     var isRecurring: Bool
+    var recurringRuleID: UUID?
+    var recurrenceOccurrence: Date?
     var isDemo: Bool
     var createdAt: Date
     var updatedAt: Date
@@ -196,6 +198,8 @@ final class Movement {
         categoryID: UUID? = nil,
         isExcluded: Bool = false,
         isRecurring: Bool = false,
+        recurringRuleID: UUID? = nil,
+        recurrenceOccurrence: Date? = nil,
         isDemo: Bool = false,
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -211,6 +215,8 @@ final class Movement {
         self.categoryID = categoryID
         self.isExcluded = isExcluded
         self.isRecurring = isRecurring
+        self.recurringRuleID = recurringRuleID
+        self.recurrenceOccurrence = recurrenceOccurrence
         self.isDemo = isDemo
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -239,6 +245,79 @@ final class Budget {
         self.isDemo = isDemo
         self.createdAt = createdAt
     }
+}
+
+// MARK: - Recurring movement rules
+
+enum RecurrenceFrequency: String, CaseIterable, Identifiable, Codable {
+    case weekly, biweekly, monthly, yearly
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .weekly: "Cada semana"
+        case .biweekly: "Cada dos semanas"
+        case .monthly: "Cada mes"
+        case .yearly: "Cada año"
+        }
+    }
+}
+
+@Model
+final class RecurringRule {
+    @Attribute(.unique) var id: UUID
+    var kindRaw: String
+    var amountCents: Int
+    var title: String
+    var notes: String
+    var accountID: UUID
+    var categoryID: UUID?
+    var isExcluded: Bool
+    var frequencyRaw: String
+    var startDate: Date
+    var nextOccurrence: Date
+    var endDate: Date?
+    var anchorDay: Int
+    var isActive: Bool
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        kind: MovementKind,
+        amountCents: Int,
+        title: String,
+        notes: String = "",
+        accountID: UUID,
+        categoryID: UUID? = nil,
+        isExcluded: Bool = false,
+        frequency: RecurrenceFrequency,
+        startDate: Date,
+        nextOccurrence: Date,
+        endDate: Date? = nil,
+        anchorDay: Int,
+        isActive: Bool = true,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.kindRaw = kind.rawValue
+        self.amountCents = amountCents
+        self.title = title
+        self.notes = notes
+        self.accountID = accountID
+        self.categoryID = categoryID
+        self.isExcluded = isExcluded
+        self.frequencyRaw = frequency.rawValue
+        self.startDate = startDate
+        self.nextOccurrence = nextOccurrence
+        self.endDate = endDate
+        self.anchorDay = anchorDay
+        self.isActive = isActive
+        self.createdAt = createdAt
+    }
+
+    var kind: MovementKind { MovementKind(rawValue: kindRaw) ?? .expense }
+    var frequency: RecurrenceFrequency { RecurrenceFrequency(rawValue: frequencyRaw) ?? .monthly }
 }
 
 // MARK: - Lookup
