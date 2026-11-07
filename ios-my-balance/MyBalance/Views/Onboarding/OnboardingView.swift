@@ -5,6 +5,7 @@ struct OnboardingView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.palette) private var palette
     @Environment(AppSettings.self) private var settings
+    @Environment(AppErrorCenter.self) private var errorCenter
 
     @State private var page = 0
     @State private var name = ""
@@ -51,7 +52,12 @@ struct OnboardingView: View {
     private func finish() {
         settings.userName = name.trimmed
         if wantsDemo {
-            Seed.loadDemo(context)
+            do {
+                try Seed.loadDemo(context)
+            } catch {
+                errorCenter.message = error.localizedDescription
+                return
+            }
         }
         settings.hasOnboarded = true
     }

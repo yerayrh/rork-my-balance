@@ -13,6 +13,7 @@ struct BudgetsTab: View {
 struct BudgetsView: View {
     @Environment(\.palette) private var palette
     @Environment(\.modelContext) private var context
+    @Environment(AppErrorCenter.self) private var errorCenter
 
     @Query(sort: \Movement.date, order: .reverse) private var movements: [Movement]
     @Query(sort: \MovementCategory.sortOrder) private var categories: [MovementCategory]
@@ -239,7 +240,11 @@ struct BudgetsView: View {
                     }
                     Button(role: .destructive) {
                         context.delete(row.budget)
-                        try? context.save()
+                        do { try context.save() }
+                        catch {
+                            context.rollback()
+                            errorCenter.message = error.localizedDescription
+                        }
                     } label: {
                         Label("Eliminar", systemImage: "trash")
                     }

@@ -20,6 +20,7 @@ struct AccountsListView: View {
     @State private var showNew = false
     @State private var editing: Account?
     @State private var pendingDelete: Account?
+    @State private var saveError: String?
 
     var body: some View {
         let active = accounts.filter { !$0.isArchived }
@@ -89,6 +90,14 @@ struct AccountsListView: View {
         .background(palette.canvas)
         .navigationTitle("Cuentas")
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    settings.accountBalancesVisible.toggle()
+                } label: {
+                    Image(systemName: settings.accountBalancesVisible ? "eye" : "eye.slash")
+                }
+                .accessibilityLabel(settings.accountBalancesVisible ? "Ocultar saldos de cuentas" : "Mostrar saldos de cuentas")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button { showNew = true } label: { Image(systemName: "plus") }
                     .accessibilityLabel("Nueva cuenta")
@@ -96,17 +105,13 @@ struct AccountsListView: View {
         }
         .sheet(isPresented: $showNew) { AccountFormView(account: nil) }
         .sheet(item: $editing) { AccountFormView(account: $0) }
-        .confirmationDialog(
-            "¿Eliminar la cuenta?",
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingDelete
-        ) { a in
-            Button("Eliminar cuenta", role: .destructive) {
-                withAnimation { AccountActions.delete(a, movements: movements, context: context) }
-            }
-        } message: { a in
-            Text(AccountActions.deleteMessage(a, movements: movements))
+        .alert("No se pudo guardar", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
         }
     }
 
@@ -120,6 +125,25 @@ struct AccountsListView: View {
         .contextMenu {
             Button { editing = a } label: { Label("Editar", systemImage: "pencil") }
             Button(role: .destructive) { pendingDelete = a } label: { Label("Eliminar", systemImage: "trash") }
+        }
+        .confirmationDialog(
+            "¿Eliminar la cuenta?",
+            isPresented: Binding(
+                get: { pendingDelete?.id == a.id },
+                set: { if !$0 && pendingDelete?.id == a.id { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar cuenta", role: .destructive) {
+                do {
+                    try AccountActions.delete(a, movements: movements, context: context)
+                    pendingDelete = nil
+                } catch {
+                    saveError = error.localizedDescription
+                }
+            }
+        } message: {
+            Text(AccountActions.deleteMessage(a, movements: movements))
         }
     }
 }
@@ -135,9 +159,13 @@ enum AccountActions {
         return "Se eliminará «\(a.name)» junto con sus \(n) movimientos (incluidas las transferencias). Esta acción no se puede deshacer."
     }
 
-    static func delete(_ a: Account, movements: [Movement], context: ModelContext) {
+    static func delete(_ a: Account, movements: [Movement], context: ModelContext) throws {
         for m in related(a, movements: movements) { context.delete(m) }
         context.delete(a)
-        try? context.save()
+        do { try context.save() }
+        catch {
+            context.rollback()
+            throw error
+        }
     }
 }

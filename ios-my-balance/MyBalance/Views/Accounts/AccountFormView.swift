@@ -23,6 +23,7 @@ struct AccountFormView: View {
     @State private var showBankPicker = false
     @State private var confirmDelete = false
     @State private var loaded = false
+    @State private var saveError: String?
 
     private var isEditing: Bool { account != nil }
 
@@ -151,16 +152,6 @@ struct AccountFormView: View {
                     colorHex = bank.colorHex
                 }
             }
-            .confirmationDialog("¿Eliminar la cuenta?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Eliminar cuenta", role: .destructive) {
-                    if let account {
-                        AccountActions.delete(account, movements: allMovements, context: context)
-                        dismiss()
-                    }
-                }
-            } message: {
-                Text(account.map { AccountActions.deleteMessage($0, movements: allMovements) } ?? "")
-            }
             .onAppear(perform: load)
             .toolbar {
                 if isEditing {
@@ -168,8 +159,29 @@ struct AccountFormView: View {
                         Button(role: .destructive) { confirmDelete = true } label: {
                             Label("Eliminar cuenta", systemImage: "trash")
                         }
+                        .confirmationDialog("¿Eliminar la cuenta?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                            Button("Eliminar cuenta", role: .destructive) {
+                                guard let account else { return }
+                                do {
+                                    try AccountActions.delete(account, movements: allMovements, context: context)
+                                    dismiss()
+                                } catch {
+                                    saveError = error.localizedDescription
+                                }
+                            }
+                        } message: {
+                            Text(account.map { AccountActions.deleteMessage($0, movements: allMovements) } ?? "")
+                        }
                     }
                 }
+            }
+            .alert("No se pudo guardar", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("Entendido", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
             }
         }
         .presentationDragIndicator(.visible)
@@ -197,30 +209,35 @@ struct AccountFormView: View {
     private func save() {
         guard let cents = Money.parse(balanceText) else { return }
         let finalColor = bankID != nil ? (BankCatalog.byID[bankID ?? ""]?.colorHex ?? colorHex) : colorHex
-        if let account {
-            account.name = name.trimmed
-            account.bankID = bankID
-            account.colorHex = finalColor
-            account.iconName = type.defaultIcon
-            account.type = type
-            account.initialBalanceCents = cents
-            account.initialDate = initialDate
-            account.isArchived = isArchived
-            try? context.save()
-        } else {
-            let a = Account(
-                name: name.trimmed,
-                bankID: bankID,
-                colorHex: finalColor,
-                iconName: type.defaultIcon,
-                type: type,
-                initialBalanceCents: cents,
-                initialDate: initialDate,
-                sortOrder: (accounts.map(\.sortOrder).max() ?? 0) + 1
-            )
-            context.insert(a)
-            try? context.save()
+        do {
+            if let account {
+                account.name = name.trimmed
+                account.bankID = bankID
+                account.colorHex = finalColor
+                account.iconName = type.defaultIcon
+                account.type = type
+                account.initialBalanceCents = cents
+                account.initialDate = initialDate
+                account.isArchived = isArchived
+                try context.save()
+            } else {
+                let a = Account(
+                    name: name.trimmed,
+                    bankID: bankID,
+                    colorHex: finalColor,
+                    iconName: type.defaultIcon,
+                    type: type,
+                    initialBalanceCents: cents,
+                    initialDate: initialDate,
+                    sortOrder: (accounts.map(\.sortOrder).max() ?? 0) + 1
+                )
+                context.insert(a)
+                try context.save()
+            }
+            dismiss()
+        } catch {
+            context.rollback()
+            saveError = error.localizedDescription
         }
-        dismiss()
     }
 }

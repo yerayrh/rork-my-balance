@@ -7,6 +7,7 @@ struct MyBalanceApp: App {
     @State private var settings: AppSettings
     @State private var router = AppRouter()
     @State private var lockManager = LockManager()
+    @State private var errorCenter: AppErrorCenter
 
     init() {
         do {
@@ -18,10 +19,16 @@ struct MyBalanceApp: App {
         }
         let s = AppSettings()
         settings = s
+        let errorCenter = AppErrorCenter()
+        _errorCenter = State(initialValue: errorCenter)
 
         // Seed default categories on first launch.
         let context = container.mainContext
-        Seed.ensureCategories(context)
+        do {
+            try Seed.ensureCategories(context)
+        } catch {
+            errorCenter.message = error.localizedDescription
+        }
     }
 
     var body: some Scene {
@@ -31,6 +38,7 @@ struct MyBalanceApp: App {
                 .environment(settings)
                 .environment(router)
                 .environment(lockManager)
+                .environment(errorCenter)
                 .environment(\.palette, Palette.make(theme: settings.theme, dark: settings.appearance == .dark))
                 .preferredColorScheme(settings.appearance.colorScheme)
         }
@@ -43,6 +51,7 @@ struct RootView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(AppRouter.self) private var router
     @Environment(LockManager.self) private var lockManager
+    @Environment(AppErrorCenter.self) private var errorCenter
     @Environment(\.palette) private var palette
     @Query(sort: \Movement.date, order: .reverse) private var movements: [Movement]
     @Query private var budgets: [Budget]
@@ -104,6 +113,14 @@ struct RootView: View {
                     .transition(.opacity)
                     .zIndex(1)
             }
+        }
+        .alert("No se pudo guardar", isPresented: Binding(
+            get: { errorCenter.message != nil },
+            set: { if !$0 { errorCenter.message = nil } }
+        )) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(errorCenter.message ?? "")
         }
         .animation(.easeOut(duration: 0.25), value: lockManager.isLocked)
         .animation(.easeOut(duration: 0.25), value: settings.hasOnboarded)

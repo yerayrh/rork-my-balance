@@ -112,6 +112,7 @@ struct BudgetFormView: View {
             try context.save()
             dismiss()
         } catch {
+            context.rollback()
             saveError = error.localizedDescription
         }
     }

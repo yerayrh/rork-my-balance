@@ -73,14 +73,6 @@ struct MovementFormView: View {
                         .disabled(!isValid)
                 }
             }
-            .confirmationDialog("¿Eliminar el movimiento?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Eliminar movimiento", role: .destructive) {
-                    if let movement { context.delete(movement); try? context.save() }
-                    dismiss()
-                }
-            } message: {
-                Text("Esta acción no se puede deshacer.")
-            }
             .confirmationDialog(
                 "¿Eliminar la categoría «\(categoryToDelete?.name ?? "")»?",
                 isPresented: Binding(get: { categoryToDelete != nil }, set: { if !$0 { categoryToDelete = nil } }),
@@ -242,14 +234,18 @@ struct MovementFormView: View {
 
     private func deleteCategory() {
         guard let c = categoryToDelete else { return }
-        let id = c.id
-        if let all = try? context.fetch(FetchDescriptor<Movement>()) {
+        do {
+            let id = c.id
+            let all = try context.fetch(FetchDescriptor<Movement>())
             for m in all where m.categoryID == id { m.categoryID = nil }
+            if categoryID == id { categoryID = nil }
+            context.delete(c)
+            try context.save()
+            categoryToDelete = nil
+        } catch {
+            context.rollback()
+            saveError = error.localizedDescription
         }
-        if categoryID == id { categoryID = nil }
-        context.delete(c)
-        try? context.save()
-        categoryToDelete = nil
     }
 
     private var accountSection: some View {
@@ -324,6 +320,21 @@ struct MovementFormView: View {
             Button(role: .destructive) { confirmDelete = true } label: {
                 Label("Eliminar movimiento", systemImage: "trash")
                     .frame(maxWidth: .infinity)
+            }
+            .confirmationDialog("¿Eliminar el movimiento?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Eliminar movimiento", role: .destructive) {
+                    guard let movement else { return }
+                    context.delete(movement)
+                    do {
+                        try context.save()
+                        dismiss()
+                    } catch {
+                        context.rollback()
+                        saveError = error.localizedDescription
+                    }
+                }
+            } message: {
+                Text("Esta acción no se puede deshacer.")
             }
         }
         .listRowBackground(Color.clear)
@@ -408,6 +419,7 @@ struct MovementFormView: View {
             try context.save()
             dismiss()
         } catch {
+            context.rollback()
             saveError = error.localizedDescription
         }
     }

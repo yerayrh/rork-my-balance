@@ -51,8 +51,10 @@ struct MyBalanceTests {
         let enabled: Set<BudgetAlertThreshold> = [.eighty, .oneHundred, .exceeded]
         #expect(BudgetAlertThreshold.crossed(spent: 7_999, limit: 10_000, enabled: enabled).isEmpty)
         #expect(BudgetAlertThreshold.crossed(spent: 8_000, limit: 10_000, enabled: enabled) == [.eighty])
-        #expect(BudgetAlertThreshold.crossed(spent: 10_000, limit: 10_000, enabled: enabled) == [.eighty, .oneHundred])
-        #expect(BudgetAlertThreshold.crossed(spent: 10_001, limit: 10_000, enabled: enabled) == [.eighty, .oneHundred, .exceeded])
+        #expect(BudgetAlertThreshold.crossed(spent: 9_000, limit: 10_000, enabled: enabled) == [.eighty])
+        #expect(BudgetAlertThreshold.crossed(spent: 10_000, limit: 10_000, enabled: enabled) == [.oneHundred])
+        #expect(BudgetAlertThreshold.crossed(spent: 10_001, limit: 10_000, enabled: enabled) == [.exceeded])
+        #expect(BudgetAlertThreshold.crossed(spent: 10_001, limit: 10_000, enabled: [.eighty, .oneHundred]) == [.oneHundred])
         #expect(BudgetAlertThreshold.crossed(spent: 20_000, limit: 0, enabled: enabled).isEmpty)
         #expect(BudgetAlertThreshold.crossed(spent: 9_000, limit: 10_000, enabled: [.oneHundred]).isEmpty)
     }

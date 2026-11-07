@@ -18,6 +18,7 @@ struct AccountDetailView: View {
     @State private var confirmDelete = false
     @State private var editing: Movement?
     @State private var isGone = false
+    @State private var saveError: String?
 
     private var movements: [Movement] {
         allMovements.filter { $0.accountID == account.id || $0.toAccountID == account.id }
@@ -100,6 +101,18 @@ struct AccountDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .confirmationDialog("¿Eliminar la cuenta?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                    Button("Eliminar cuenta", role: .destructive) {
+                        do {
+                            try AccountActions.delete(account, movements: allMovements, context: context)
+                            isGone = true
+                        } catch {
+                            saveError = error.localizedDescription
+                        }
+                    }
+                } message: {
+                    Text(AccountActions.deleteMessage(account, movements: allMovements))
+                }
             }
         }
         .sheet(isPresented: $showEdit) { AccountFormView(account: account) }
@@ -107,15 +120,13 @@ struct AccountDetailView: View {
             MovementFormView(movement: nil, presetAccountID: account.id)
         }
         .sheet(item: $editing) { MovementFormView(movement: $0) }
-        .confirmationDialog("¿Eliminar la cuenta?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Eliminar cuenta", role: .destructive) {
-                withAnimation {
-                    AccountActions.delete(account, movements: allMovements, context: context)
-                    isGone = true
-                }
-            }
+        .alert("No se pudo guardar", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("Entendido", role: .cancel) {}
         } message: {
-            Text(AccountActions.deleteMessage(account, movements: allMovements))
+            Text(saveError ?? "")
         }
         .onDisappear { if isGone { dismiss() } }
     }

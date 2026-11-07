@@ -20,6 +20,7 @@ struct CategoryFormView: View {
     @State private var customColor = Color(hex: "#2F5BFF")
     @State private var emojiFocused = false
     @State private var loaded = false
+    @State private var saveError: String?
     @FocusState private var nameFocused: Bool
 
     private var isEditing: Bool { category != nil }
@@ -235,6 +236,14 @@ struct CategoryFormView: View {
             .onChange(of: customColor) { _, newValue in
                 withAnimation(.snappy(duration: 0.2)) { colorHex = newValue.hexString }
             }
+            .alert("No se pudo guardar", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("Entendido", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
+            }
         }
         .presentationDragIndicator(.visible)
     }
@@ -245,16 +254,26 @@ struct CategoryFormView: View {
             category.name = trimmedName
             category.icon = icon
             category.colorHex = colorHex
-            try? context.save()
-            onCreate(category)
-            dismiss()
+            do {
+                try context.save()
+                onCreate(category)
+                dismiss()
+            } catch {
+                context.rollback()
+                saveError = error.localizedDescription
+            }
             return
         }
         let order = (categories.filter { $0.kind == kind }.map(\.sortOrder).max() ?? 0) + 1
         let c = MovementCategory(name: trimmedName, icon: icon, colorHex: colorHex, kind: kind, sortOrder: order, isDefault: false)
         context.insert(c)
-        try? context.save()
-        onCreate(c)
-        dismiss()
+        do {
+            try context.save()
+            onCreate(c)
+            dismiss()
+        } catch {
+            context.rollback()
+            saveError = error.localizedDescription
+        }
     }
 }

@@ -74,6 +74,11 @@ final class AppRouter {
 }
 
 @Observable
+final class AppErrorCenter {
+    var message: String?
+}
+
+@Observable
 final class LockManager {
     var isLocked: Bool
     var isAuthenticating = false

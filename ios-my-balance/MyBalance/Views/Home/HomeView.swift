@@ -6,6 +6,7 @@ struct HomeView: View {
     @Environment(\.palette) private var palette
     @Environment(AppRouter.self) private var router
     @Environment(AppSettings.self) private var settings
+    @Environment(AppErrorCenter.self) private var errorCenter
     @Environment(\.modelContext) private var context
 
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
@@ -68,13 +69,6 @@ struct HomeView: View {
             .sheet(isPresented: $showNewMovement) { MovementFormView(movement: nil) }
             .sheet(isPresented: $showNewAccount) { AccountFormView(account: nil) }
             .sheet(item: $editing) { MovementFormView(movement: $0) }
-            .confirmationDialog("¿Eliminar los datos de demostración?", isPresented: $confirmRemoveDemo, titleVisibility: .visible) {
-                Button("Eliminar datos de demostración", role: .destructive) {
-                    withAnimation { Seed.removeDemo(context) }
-                }
-            } message: {
-                Text("Se borrarán las cuentas, movimientos y presupuestos de ejemplo. Tus datos reales no se tocan.")
-            }
         }
     }
 
@@ -96,6 +90,16 @@ struct HomeView: View {
                 .font(.subheadline.weight(.semibold))
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.capsule)
+                .confirmationDialog("¿Eliminar los datos de demostración?", isPresented: $confirmRemoveDemo, titleVisibility: .visible) {
+                    Button("Eliminar datos de demostración", role: .destructive) {
+                        withAnimation {
+                            do { try Seed.removeDemo(context) }
+                            catch { errorCenter.message = error.localizedDescription }
+                        }
+                    }
+                } message: {
+                    Text("Se borrarán las cuentas, movimientos y presupuestos de ejemplo. Tus datos reales no se tocan.")
+                }
         }
         .card(padding: 14)
     }

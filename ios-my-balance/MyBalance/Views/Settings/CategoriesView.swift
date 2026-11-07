@@ -5,6 +5,7 @@ import SwiftData
 struct CategoriesView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.palette) private var palette
+    @Environment(AppErrorCenter.self) private var errorCenter
 
     @Query(sort: \MovementCategory.sortOrder) private var categories: [MovementCategory]
     @Query private var movements: [Movement]
@@ -184,19 +185,28 @@ struct CategoriesView: View {
         var items = visible
         items.move(fromOffsets: source, toOffset: destination)
         for (i, c) in items.enumerated() { c.sortOrder = i }
-        try? context.save()
+        do { try context.save() }
+        catch {
+            context.rollback()
+            errorCenter.message = error.localizedDescription
+        }
     }
 
     private func delete() {
         guard let c = toDelete else { return }
         let id = c.id
-        withAnimation(.snappy) {
-            for m in movements where m.categoryID == id { m.categoryID = nil }
-            for b in budgets where b.categoryID == id { context.delete(b) }
-            context.delete(c)
-            try? context.save()
+        do {
+            withAnimation(.snappy) {
+                for m in movements where m.categoryID == id { m.categoryID = nil }
+                for b in budgets where b.categoryID == id { context.delete(b) }
+                context.delete(c)
+            }
+            try context.save()
+            toDelete = nil
+        } catch {
+            context.rollback()
+            errorCenter.message = error.localizedDescription
         }
-        toDelete = nil
     }
 
     private func restoreDefaults() {
@@ -205,7 +215,11 @@ struct CategoriesView: View {
             for (i, d) in missingDefaults.enumerated() {
                 context.insert(MovementCategory(name: d.0, icon: d.1, colorHex: d.2, kind: kind, sortOrder: start + i, isDefault: true))
             }
-            try? context.save()
+        }
+        do { try context.save() }
+        catch {
+            context.rollback()
+            errorCenter.message = error.localizedDescription
         }
     }
 }

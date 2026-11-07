@@ -36,12 +36,20 @@ enum Seed {
 
     static let seededKey = "didSeedCategories"
 
-    static func ensureCategories(_ context: ModelContext) {
+    private static func save(_ context: ModelContext) throws {
+        do { try context.save() }
+        catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    static func ensureCategories(_ context: ModelContext) throws {
         guard !UserDefaults.standard.bool(forKey: seededKey) else { return }
-        let count = (try? context.fetchCount(FetchDescriptor<MovementCategory>())) ?? 0
+        let count = try context.fetchCount(FetchDescriptor<MovementCategory>())
         if count == 0 { insertDefaultCategories(context) }
+        try save(context)
         UserDefaults.standard.set(true, forKey: seededKey)
-        try? context.save()
     }
 
     static func insertDefaultCategories(_ context: ModelContext) {
@@ -64,13 +72,13 @@ enum Seed {
         }
     }
 
-    static func loadDemo(_ context: ModelContext) {
-        let cats = (try? context.fetch(FetchDescriptor<MovementCategory>())) ?? []
+    static func loadDemo(_ context: ModelContext) throws {
+        let cats = try context.fetch(FetchDescriptor<MovementCategory>())
         if cats.isEmpty { insertDefaultCategories(context) }
-        let all = (try? context.fetch(FetchDescriptor<MovementCategory>())) ?? []
+        let all = try context.fetch(FetchDescriptor<MovementCategory>())
         func cat(_ name: String) -> UUID? { all.first { $0.name == name }?.id }
 
-        let existing = (try? context.fetchCount(FetchDescriptor<Account>())) ?? 0
+        let existing = try context.fetchCount(FetchDescriptor<Account>())
         let now = Date()
         let start = now.startOfMonth.addingMonths(-4)
 
@@ -124,28 +132,33 @@ enum Seed {
         if let r = cat("Restaurantes") { context.insert(Budget(categoryID: r, limitCents: 100_00, isDemo: true)) }
         if let o = cat("Ocio") { context.insert(Budget(categoryID: o, limitCents: 150_00, isDemo: true)) }
 
-        try? context.save()
+        try save(context)
     }
 
-    static func removeDemo(_ context: ModelContext) {
-        let accounts = (try? context.fetch(FetchDescriptor<Account>())) ?? []
+    static func removeDemo(_ context: ModelContext) throws {
+        let accounts = try context.fetch(FetchDescriptor<Account>())
         let demoIDs = Set(accounts.filter(\.isDemo).map(\.id))
-        let movements = (try? context.fetch(FetchDescriptor<Movement>())) ?? []
+        let movements = try context.fetch(FetchDescriptor<Movement>())
         for m in movements where m.isDemo || demoIDs.contains(m.accountID) || (m.toAccountID.map { demoIDs.contains($0) } ?? false) {
             context.delete(m)
         }
         for a in accounts where a.isDemo { context.delete(a) }
-        let budgets = (try? context.fetch(FetchDescriptor<Budget>())) ?? []
+        let budgets = try context.fetch(FetchDescriptor<Budget>())
         for b in budgets where b.isDemo { context.delete(b) }
-        try? context.save()
+        try save(context)
     }
 
-    static func wipeAll(_ context: ModelContext) {
-        ((try? context.fetch(FetchDescriptor<Movement>())) ?? []).forEach { context.delete($0) }
-        ((try? context.fetch(FetchDescriptor<RecurringRule>())) ?? []).forEach { context.delete($0) }
-        ((try? context.fetch(FetchDescriptor<Account>())) ?? []).forEach { context.delete($0) }
-        ((try? context.fetch(FetchDescriptor<Budget>())) ?? []).forEach { context.delete($0) }
-        ((try? context.fetch(FetchDescriptor<MovementCategory>())) ?? []).forEach { context.delete($0) }
-        try? context.save()
+    static func wipeAll(_ context: ModelContext) throws {
+        let movements = try context.fetch(FetchDescriptor<Movement>())
+        let rules = try context.fetch(FetchDescriptor<RecurringRule>())
+        let accounts = try context.fetch(FetchDescriptor<Account>())
+        let budgets = try context.fetch(FetchDescriptor<Budget>())
+        let categories = try context.fetch(FetchDescriptor<MovementCategory>())
+        movements.forEach { context.delete($0) }
+        rules.forEach { context.delete($0) }
+        accounts.forEach { context.delete($0) }
+        budgets.forEach { context.delete($0) }
+        categories.forEach { context.delete($0) }
+        try save(context)
     }
 }

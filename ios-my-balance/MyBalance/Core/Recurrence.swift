@@ -70,10 +70,12 @@ enum BudgetAlertThreshold: Int, CaseIterable, Identifiable {
 
     static func crossed(spent: Int, limit: Int, enabled: Set<BudgetAlertThreshold>) -> [BudgetAlertThreshold] {
         guard limit > 0 else { return [] }
-        return allCases.filter { threshold in
+        let crossed = allCases.filter { threshold in
             guard enabled.contains(threshold) else { return false }
             if threshold == .exceeded { return spent > limit }
             return Double(spent) / Double(limit) * 100 >= Double(threshold.percent)
         }
+        // If one movement crosses several levels at once, report only the highest one.
+        return crossed.last.map { [$0] } ?? []
     }
 }

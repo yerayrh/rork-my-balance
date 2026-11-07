@@ -151,6 +151,8 @@ struct ExcludedTag: View {
     var body: some View {
         Text("Excluido")
             .font(.caption2.weight(.bold))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .foregroundStyle(Color(hex: "#E67E00"))

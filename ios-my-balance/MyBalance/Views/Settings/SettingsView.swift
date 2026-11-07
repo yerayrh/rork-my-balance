@@ -9,6 +9,8 @@ struct SettingsView: View {
 
     @Environment(AppSettings.self) private var settings
     @Environment(LockManager.self) private var lockManager
+    @Environment(AppErrorCenter.self) private var errorCenter
+    @Environment(AppErrorCenter.self) private var errorCenter
 
     @Query private var accounts: [Account]
     @Query private var movements: [Movement]
@@ -98,27 +100,6 @@ struct SettingsView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             Text(notificationTestMessage ?? "")
-        }
-        .confirmationDialog("¿Borrar todos los datos?", isPresented: $confirmWipe, titleVisibility: .visible) {
-            Button("Borrar todo", role: .destructive) {
-                Seed.wipeAll(context)
-                UserDefaults.standard.set(false, forKey: Seed.seededKey)
-                Seed.ensureCategories(context)
-            }
-        } message: {
-            Text("Se eliminarán cuentas, categorías, movimientos, presupuestos y reglas recurrentes. Después se restaurarán las categorías básicas. Esta acción no se puede deshacer.")
-        }
-        .confirmationDialog("¿Eliminar los datos de demostración?", isPresented: $confirmRemoveDemo, titleVisibility: .visible) {
-            Button("Eliminar datos de demostración", role: .destructive) {
-                Seed.removeDemo(context)
-            }
-        } message: {
-            Text("Se borrarán las cuentas, movimientos y presupuestos marcados como demo. Tus datos reales no se tocan.")
-        }
-        .confirmationDialog("¿Cargar datos de ejemplo?", isPresented: $confirmLoadDemo, titleVisibility: .visible) {
-            Button("Cargar datos de ejemplo") { Seed.loadDemo(context) }
-        } message: {
-            Text("Se añadirán cuentas y movimientos de ejemplo (marcados como demo). Podrás borrarlos en cualquier momento.")
         }
     }
 
@@ -369,11 +350,27 @@ struct SettingsView: View {
                 } label: {
                     Label("Eliminar datos de demostración", systemImage: "sparkles")
                 }
+                .confirmationDialog("¿Eliminar los datos de demostración?", isPresented: $confirmRemoveDemo, titleVisibility: .visible) {
+                    Button("Eliminar datos de demostración", role: .destructive) {
+                        do { try Seed.removeDemo(context) }
+                        catch { errorCenter.message = error.localizedDescription }
+                    }
+                } message: {
+                    Text("Se borrarán las cuentas, movimientos y presupuestos marcados como demo. Tus datos reales no se tocan.")
+                }
             } else {
                 Button {
                     confirmLoadDemo = true
                 } label: {
                     Label("Cargar datos de ejemplo", systemImage: "sparkles")
+                }
+                .confirmationDialog("¿Cargar datos de ejemplo?", isPresented: $confirmLoadDemo, titleVisibility: .visible) {
+                    Button("Cargar datos de ejemplo") {
+                        do { try Seed.loadDemo(context) }
+                        catch { errorCenter.message = error.localizedDescription }
+                    }
+                } message: {
+                    Text("Se añadirán cuentas y movimientos de ejemplo (marcados como demo). Podrás borrarlos en cualquier momento.")
                 }
             }
 
@@ -381,6 +378,19 @@ struct SettingsView: View {
                 confirmWipe = true
             } label: {
                 Label("Borrar todos los datos", systemImage: "trash")
+            }
+            .confirmationDialog("¿Borrar todos los datos?", isPresented: $confirmWipe, titleVisibility: .visible) {
+                Button("Borrar todo", role: .destructive) {
+                    do {
+                        try Seed.wipeAll(context)
+                        UserDefaults.standard.set(false, forKey: Seed.seededKey)
+                        try Seed.ensureCategories(context)
+                    } catch {
+                        errorCenter.message = error.localizedDescription
+                    }
+                }
+            } message: {
+                Text("Se eliminarán cuentas, categorías, movimientos, presupuestos y reglas recurrentes. Después se restaurarán las categorías básicas. Esta acción no se puede deshacer.")
             }
         } header: {
             Text("Copia de seguridad y datos")
