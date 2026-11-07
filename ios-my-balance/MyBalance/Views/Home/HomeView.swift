@@ -19,7 +19,6 @@ struct HomeView: View {
     @State private var showNewAccount = false
     @State private var editing: Movement?
     @State private var confirmRemoveDemo = false
-
     private var activeAccounts: [Account] { accounts.filter { !$0.isArchived } }
 
     var body: some View {
@@ -41,6 +40,19 @@ struct HomeView: View {
             .scrollIndicators(.hidden)
             .background(palette.canvas)
             .navigationTitle("Inicio")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        settings.accountBalancesVisible.toggle()
+                        if !settings.accountBalancesVisible { showBreakdown = false }
+                    } label: {
+                        Image(systemName: settings.accountBalancesVisible ? "eye" : "eye.slash")
+                            .font(.body.weight(.semibold))
+                    }
+                    .accessibilityLabel(settings.accountBalancesVisible ? "Ocultar saldos de cuentas" : "Mostrar saldos de cuentas")
+                    .accessibilityHint("Oculta o muestra el total y los saldos de tus cuentas en la app")
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 FloatingAddButton { showNewMovement = true }
                     .padding(.trailing, 20)
@@ -98,40 +110,43 @@ struct HomeView: View {
             Text("Dinero total")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text(Money.format(total))
+            Text(settings.accountBalancesVisible ? Money.format(total) : "••••••")
                 .font(.system(size: 44, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: total)
+                .accessibilityLabel(settings.accountBalancesVisible ? Money.format(total) : "Saldo total oculto")
 
-            if let change {
-                let up = change.delta >= 0
-                HStack(spacing: 6) {
-                    Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
-                        .font(.caption.weight(.bold))
-                    Text(change.percent.map { Fmt.percent($0, sign: true) } ?? Money.format(change.delta, sign: .always))
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                    Text("vs. mes anterior")
+            if settings.accountBalancesVisible {
+                if let change {
+                    let up = change.delta >= 0
+                    HStack(spacing: 6) {
+                        Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                            .font(.caption.weight(.bold))
+                        Text(change.percent.map { Fmt.percent($0, sign: true) } ?? Money.format(change.delta, sign: .always))
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                        Text("vs. mes anterior")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(up ? palette.positive : palette.negative)
+                } else if !activeAccounts.isEmpty {
+                    Text("Aún no hay datos del mes anterior")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(up ? palette.positive : palette.negative)
-            } else if !activeAccounts.isEmpty {
-                Text("Aún no hay datos del mes anterior")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+
+                if series.count > 1 {
+                    patrimonyChart(series)
+                        .frame(height: 190)
+                        .padding(.top, 10)
+                }
             }
 
-            if series.count > 1 {
-                patrimonyChart(series)
-                    .frame(height: 190)
-                    .padding(.top, 10)
-            }
-
-            if !activeAccounts.isEmpty {
+            if settings.accountBalancesVisible && !activeAccounts.isEmpty {
                 Button {
                     withAnimation(.snappy) { showBreakdown.toggle() }
                 } label: {
@@ -248,9 +263,14 @@ struct HomeView: View {
                             NavigationLink {
                                 AccountDetailView(account: a)
                             } label: {
-                                AccountCard(account: a, balance: Finance.balance(of: a, in: movements))
+                                AccountCard(
+                                    account: a,
+                                    balance: Finance.balance(of: a, in: movements),
+                                    hideBalance: !settings.accountBalancesVisible
+                                )
                             }
                             .buttonStyle(PressableStyle())
+                            .disabled(!settings.accountBalancesVisible)
                         }
                         Button { showNewAccount = true } label: {
                             VStack(spacing: 8) {

@@ -192,6 +192,7 @@ struct MovementRow: View {
 struct AccountCard: View {
     let account: Account
     let balance: Int
+    var hideBalance = false
 
     var body: some View {
         let dark = HexColor.prefersDarkText(account.colorHex)
@@ -211,11 +212,12 @@ struct AccountCard: View {
                 .font(.subheadline.weight(.medium))
                 .opacity(0.85)
                 .lineLimit(1)
-            Text(Money.format(balance))
+            Text(hideBalance ? "••••••" : Money.format(balance))
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .accessibilityLabel(hideBalance ? "Saldo de la cuenta oculto" : Money.format(balance))
         }
         .foregroundStyle(dark ? Color.black.opacity(0.85) : .white)
         .padding(16)
@@ -237,6 +239,7 @@ struct AccountCard: View {
 struct AccountWideCard: View {
     let account: Account
     let balance: Int
+    var hideBalance = false
 
     var body: some View {
         let dark = HexColor.prefersDarkText(account.colorHex)
@@ -262,11 +265,12 @@ struct AccountWideCard: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Text(Money.format(balance))
+            Text(hideBalance ? "••••••" : Money.format(balance))
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .accessibilityLabel(hideBalance ? "Saldo de la cuenta oculto" : Money.format(balance))
         }
         .foregroundStyle(dark ? Color.black.opacity(0.85) : .white)
         .padding(16)

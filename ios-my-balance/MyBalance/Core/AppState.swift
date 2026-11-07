@@ -27,6 +27,7 @@ final class AppSettings {
     var lockEnabled: Bool { didSet { defaults.set(lockEnabled, forKey: Keys.lock) } }
     var hasOnboarded: Bool { didSet { defaults.set(hasOnboarded, forKey: Keys.onboarded) } }
     var showBankLogos: Bool { didSet { defaults.set(showBankLogos, forKey: Keys.logos) } }
+    var accountBalancesVisible = true
 
     init() {
         let d = UserDefaults.standard

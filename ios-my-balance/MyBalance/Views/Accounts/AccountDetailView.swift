@@ -8,6 +8,7 @@ struct AccountDetailView: View {
     @Environment(\.palette) private var palette
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppSettings.self) private var settings
 
     @Query(sort: \Movement.date, order: .reverse) private var allMovements: [Movement]
     @Query private var categories: [MovementCategory]
@@ -42,7 +43,12 @@ struct AccountDetailView: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                header(balance: balance, monthNet: monthNet, showMonth: movements.contains { $0.date >= monthStart && !$0.isExcluded && $0.kind != .transfer })
+                header(
+                    balance: balance,
+                    monthNet: monthNet,
+                    showMonth: movements.contains { $0.date >= monthStart && !$0.isExcluded && $0.kind != .transfer },
+                    hideBalance: !settings.accountBalancesVisible
+                )
 
                 HStack(spacing: 10) {
                     Button { showNewMovement = true } label: {
@@ -114,7 +120,7 @@ struct AccountDetailView: View {
         .onDisappear { if isGone { dismiss() } }
     }
 
-    private func header(balance: Int, monthNet: Int, showMonth: Bool) -> some View {
+    private func header(balance: Int, monthNet: Int, showMonth: Bool, hideBalance: Bool) -> some View {
         let dark = HexColor.prefersDarkText(account.colorHex)
         let base = Color(hex: account.colorHex)
         return VStack(alignment: .leading, spacing: 10) {
@@ -130,15 +136,22 @@ struct AccountDetailView: View {
             Text("Saldo actual")
                 .font(.caption.weight(.medium))
                 .opacity(0.8)
-            Text(Money.format(balance))
+            Text(hideBalance ? "••••••" : Money.format(balance))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
-            Text("Saldo inicial: \(Money.format(account.initialBalanceCents)) · \(Fmt.date(account.initialDate))")
-                .font(.caption)
-                .opacity(0.75)
-            if showMonth {
+                .accessibilityLabel(hideBalance ? "Saldo actual oculto" : Money.format(balance))
+            if hideBalance {
+                Text("Saldo inicial oculto")
+                    .font(.caption)
+                    .opacity(0.75)
+            } else {
+                Text("Saldo inicial: \(Money.format(account.initialBalanceCents)) · \(Fmt.date(account.initialDate))")
+                    .font(.caption)
+                    .opacity(0.75)
+            }
+            if showMonth && !hideBalance {
                 let up = monthNet >= 0
                 HStack(spacing: 6) {
                     Image(systemName: up ? "arrow.up.right" : "arrow.down.right")

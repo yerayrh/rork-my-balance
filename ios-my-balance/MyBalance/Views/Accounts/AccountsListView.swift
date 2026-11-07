@@ -12,6 +12,7 @@ struct AccountsTab: View {
 struct AccountsListView: View {
     @Environment(\.palette) private var palette
     @Environment(\.modelContext) private var context
+    @Environment(AppSettings.self) private var settings
 
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
     @Query private var movements: [Movement]
@@ -32,12 +33,13 @@ struct AccountsListView: View {
                     Text("Saldo total")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Text(Money.format(total))
+                    Text(settings.accountBalancesVisible ? Money.format(total) : "••••••")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                         .contentTransition(.numericText())
+                        .accessibilityLabel(settings.accountBalancesVisible ? Money.format(total) : "Saldo total oculto")
                     Text(active.count == 1 ? "1 cuenta activa" : "\(active.count) cuentas activas")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -112,7 +114,7 @@ struct AccountsListView: View {
         NavigationLink {
             AccountDetailView(account: a)
         } label: {
-            AccountWideCard(account: a, balance: balance)
+            AccountWideCard(account: a, balance: balance, hideBalance: !settings.accountBalancesVisible)
         }
         .buttonStyle(PressableStyle())
         .contextMenu {
