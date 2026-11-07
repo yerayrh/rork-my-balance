@@ -36,6 +36,7 @@ struct CurrencyInfo: Identifiable, Hashable {
 /// guarantee Spanish (Spain) style: 1.234,56 €
 enum Money {
     static var symbol: String = "€"
+    static var masked: String { "**** \(symbol)" }
 
     enum SignStyle { case auto, always, never }
 

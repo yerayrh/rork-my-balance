@@ -136,7 +136,7 @@ struct AccountDetailView: View {
             Text("Saldo actual")
                 .font(.caption.weight(.medium))
                 .opacity(0.8)
-            Text(hideBalance ? "••••••" : Money.format(balance))
+            Text(hideBalance ? Money.masked : Money.format(balance))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)

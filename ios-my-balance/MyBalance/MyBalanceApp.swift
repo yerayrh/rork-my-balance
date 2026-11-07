@@ -49,20 +49,24 @@ struct RootView: View {
         @Bindable var router = router
 
         ZStack {
-            Group {
-                HomeView().tabContent(isActive: router.tab == .home)
-                AccountsTab().tabContent(isActive: router.tab == .accounts)
-                MovementsTab().tabContent(isActive: router.tab == .movements)
-                StatsTab().tabContent(isActive: router.tab == .stats)
-                BudgetsTab().tabContent(isActive: router.tab == .budgets)
-                SettingsTab().tabContent(isActive: router.tab == .settings)
+            TabView(selection: $router.tab) {
+                HomeView()
+                    .tabItem { Label("Inicio", systemImage: "house.fill") }
+                    .tag(AppTab.home)
+                MovementsTab()
+                    .tabItem { Label("Movimientos", systemImage: "tray.full.fill") }
+                    .tag(AppTab.movements)
+                BudgetsTab()
+                    .tabItem { Label("Presupuestos", systemImage: "chart.bar.fill") }
+                    .tag(AppTab.budgets)
+                StatsTab()
+                    .tabItem { Label("Estadísticas", systemImage: "chart.pie.fill") }
+                    .tag(AppTab.stats)
+                AccountsTab()
+                    .tabItem { Label("Cuentas", systemImage: "building.columns.fill") }
+                    .tag(AppTab.accounts)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if settings.hasOnboarded && !lockManager.isLocked {
-                    RootTabBar(selection: $router.tab, tint: palette.accent, surface: palette.surface)
-                }
-            }
+            .tint(palette.accent)
 
             if !settings.hasOnboarded {
                 OnboardingView()
@@ -80,55 +84,6 @@ struct RootView: View {
             if phase == .background, settings.lockEnabled {
                 lockManager.isLocked = true
             }
-        }
-    }
-}
-
-private extension View {
-    func tabContent(isActive: Bool) -> some View {
-        opacity(isActive ? 1 : 0)
-            .allowsHitTesting(isActive)
-            .accessibilityHidden(!isActive)
-    }
-}
-
-private struct RootTabBar: View {
-    @Binding var selection: AppTab
-    let tint: Color
-    let surface: Color
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(AppTab.allCases, id: \.self) { tab in
-                let selected = selection == tab
-                Button {
-                    selection = tab
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.symbol)
-                            .font(.system(size: 18, weight: selected ? .semibold : .regular))
-                            .frame(height: 21)
-                        Text(tab.compactTitle)
-                            .font(.system(size: 9, weight: selected ? .semibold : .medium))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    .foregroundStyle(selected ? tint : Color.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(selected ? .isSelected : [])
-            }
-        }
-        .padding(.horizontal, 4)
-        .padding(.top, 6)
-        .background {
-            surface
-                .overlay(alignment: .top) { Color.primary.opacity(0.07).frame(height: 0.5) }
-                .ignoresSafeArea(edges: .bottom)
         }
     }
 }

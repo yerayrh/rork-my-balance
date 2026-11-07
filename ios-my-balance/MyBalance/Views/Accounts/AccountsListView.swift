@@ -33,7 +33,7 @@ struct AccountsListView: View {
                     Text("Saldo total")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Text(settings.accountBalancesVisible ? Money.format(total) : "••••••")
+                    Text(settings.accountBalancesVisible ? Money.format(total) : Money.masked)
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .lineLimit(1)

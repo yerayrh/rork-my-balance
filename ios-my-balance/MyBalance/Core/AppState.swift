@@ -52,39 +52,8 @@ final class AppSettings {
     }
 }
 
-enum AppTab: Hashable, CaseIterable {
-    case home, accounts, movements, stats, budgets, settings
-
-    var title: String {
-        switch self {
-        case .home: "Inicio"
-        case .accounts: "Cuentas"
-        case .movements: "Movimientos"
-        case .stats: "Estadísticas"
-        case .budgets: "Presupuestos"
-        case .settings: "Ajustes"
-        }
-    }
-
-    var compactTitle: String {
-        switch self {
-        case .movements: "Movs."
-        case .stats: "Stats"
-        case .budgets: "Presup."
-        default: title
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .home: "house.fill"
-        case .accounts: "building.columns.fill"
-        case .movements: "tray.full.fill"
-        case .stats: "chart.pie.fill"
-        case .budgets: "chart.bar.fill"
-        case .settings: "gearshape.fill"
-        }
-    }
+enum AppTab: Hashable {
+    case home, accounts, movements, stats, budgets
 }
 
 @Observable

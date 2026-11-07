@@ -2,14 +2,6 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
-struct SettingsTab: View {
-    var body: some View {
-        NavigationStack {
-            SettingsView()
-        }
-    }
-}
-
 struct SettingsView: View {
     @Environment(\.palette) private var palette
     @Environment(\.modelContext) private var context

@@ -212,7 +212,7 @@ struct AccountCard: View {
                 .font(.subheadline.weight(.medium))
                 .opacity(0.85)
                 .lineLimit(1)
-            Text(hideBalance ? "••••••" : Money.format(balance))
+            Text(hideBalance ? Money.masked : Money.format(balance))
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .monospacedDigit()
                 .lineLimit(1)
@@ -265,7 +265,7 @@ struct AccountWideCard: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Text(hideBalance ? "••••••" : Money.format(balance))
+            Text(hideBalance ? Money.masked : Money.format(balance))
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .monospacedDigit()
                 .lineLimit(1)

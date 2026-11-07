@@ -13,7 +13,6 @@ struct HomeView: View {
     @Query(sort: \MovementCategory.sortOrder) private var categories: [MovementCategory]
 
     @State private var month = Date().startOfMonth
-    @State private var showBreakdown = false
     @State private var showAllCategories = false
     @State private var showNewMovement = false
     @State private var showNewAccount = false
@@ -44,13 +43,21 @@ struct HomeView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         settings.accountBalancesVisible.toggle()
-                        if !settings.accountBalancesVisible { showBreakdown = false }
                     } label: {
                         Image(systemName: settings.accountBalancesVisible ? "eye" : "eye.slash")
                             .font(.body.weight(.semibold))
                     }
                     .accessibilityLabel(settings.accountBalancesVisible ? "Ocultar saldos de cuentas" : "Mostrar saldos de cuentas")
                     .accessibilityHint("Oculta o muestra el total y los saldos de tus cuentas en la app")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.body.weight(.semibold))
+                    }
+                    .accessibilityLabel("Ajustes")
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -110,7 +117,7 @@ struct HomeView: View {
             Text("Dinero total")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text(settings.accountBalancesVisible ? Money.format(total) : "••••••")
+            Text(settings.accountBalancesVisible ? Money.format(total) : Money.masked)
                 .font(.system(size: 44, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
@@ -146,37 +153,6 @@ struct HomeView: View {
                 }
             }
 
-            if settings.accountBalancesVisible && !activeAccounts.isEmpty {
-                Button {
-                    withAnimation(.snappy) { showBreakdown.toggle() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(showBreakdown ? "Ocultar detalle" : "Ver saldo por cuenta")
-                        Image(systemName: "chevron.down")
-                            .rotationEffect(.degrees(showBreakdown ? 180 : 0))
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(palette.accent)
-                }
-                .sensoryFeedback(.selection, trigger: showBreakdown)
-
-                if showBreakdown {
-                    VStack(spacing: 12) {
-                        ForEach(activeAccounts) { a in
-                            HStack(spacing: 12) {
-                                AccountBadge(account: a, size: 32)
-                                Text(a.name).font(.subheadline.weight(.medium))
-                                Spacer()
-                                Text(Money.format(Finance.balance(of: a, in: movements)))
-                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                                    .monospacedDigit()
-                            }
-                        }
-                    }
-                    .card(padding: 14)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
         }
     }
 
