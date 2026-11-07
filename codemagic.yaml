@@ -23,28 +23,36 @@ workflows:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.dSYM
       - /tmp/xcodebuild_logs/*.log
 
-  ios-adhoc-ipa:
-    name: My Balance - iPhone IPA (Ad Hoc)
+  ios-unsigned-ipa:
+    name: My Balance - Unsigned IPA for iPASide
     max_build_duration: 120
     instance_type: mac_mini_m2
     working_directory: ios-my-balance
-    integrations:
-      app_store_connect: codemagic
     environment:
       xcode: latest
-      ios_signing:
-        distribution_type: ad_hoc
-        bundle_identifier: app.rork.az5buhimhitjfrma56m6x
     scripts:
-      - name: Apply provisioning profiles
-        script: xcode-project use-profiles --project MyBalance.xcodeproj
-      - name: Build signed IPA
+      - name: Build unsigned iOS app
         script: |
-          xcode-project build-ipa \
-            --project MyBalance.xcodeproj \
-            --scheme MyBalance
+          xcodebuild build \
+            -project MyBalance.xcodeproj \
+            -scheme MyBalance \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath "$CM_BUILD_DIR/ios-my-balance/build/DerivedData" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package unsigned IPA for iPASide
+        script: |
+          APP_PATH="$CM_BUILD_DIR/ios-my-balance/build/DerivedData/Build/Products/Release-iphoneos/MyBalance.app"
+          IPA_DIR="$CM_BUILD_DIR/ios-my-balance/build/ipa"
+          mkdir -p "$IPA_DIR/Payload"
+          ditto "$APP_PATH" "$IPA_DIR/Payload/MyBalance.app"
+          ditto -c -k --sequesterRsrc --keepParent "$IPA_DIR/Payload" \
+            "$CM_BUILD_DIR/ios-my-balance/build/MyBalance-unsigned.ipa"
     artifacts:
-      - ios-my-balance/build/ios/ipa/*.ipa
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Release-iphoneos/*.app
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Release-iphoneos/*.dSYM
+      - ios-my-balance/build/MyBalance-unsigned.ipa
+      - ios-my-balance/build/DerivedData/Build/Products/Release-iphoneos/*.app
+      - ios-my-balance/build/DerivedData/Build/Products/Release-iphoneos/*.dSYM
       - /tmp/xcodebuild_logs/*.log
