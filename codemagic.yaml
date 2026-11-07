@@ -44,6 +44,5 @@ workflows:
       - build/ios/ipa/*.ipa
       - "**/*.ipa"
       - build/DerivedData/Build/Products/Release-iphoneos/*.app
-      - build/DerivedData/Build/Products/Release-iphoneos/*.appex
       - build/DerivedData/Build/Products/Release-iphoneos/*.dSYM
       - /tmp/xcodebuild_logs/*.log

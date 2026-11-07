@@ -23,16 +23,14 @@ enum RecurrenceCalendar {
                   let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
                   let range = calendar.range(of: .day, in: .month, for: nextMonth) else { return nil }
             let day = min(calendar.component(.day, from: anchorDate), range.count)
-            guard let date = calendar.date(bySetting: .day, value: day, of: nextMonth) else { return nil }
-            return calendar.startOfDay(for: date)
+            return calendar.date(bySetting: .day, value: day, of: nextMonth)?.startOfDay
         case .yearly:
             let anchor = calendar.dateComponents([.month, .day], from: anchorDate)
             let year = calendar.component(.year, from: current) + 1
             guard let monthStart = calendar.date(from: DateComponents(year: year, month: anchor.month, day: 1)),
                   let range = calendar.range(of: .day, in: .month, for: monthStart) else { return nil }
             let day = min(anchor.day ?? 1, range.count)
-            guard let date = calendar.date(bySetting: .day, value: day, of: monthStart) else { return nil }
-            return calendar.startOfDay(for: date)
+            return calendar.date(bySetting: .day, value: day, of: monthStart)?.startOfDay
         }
     }
 
@@ -44,8 +42,7 @@ enum RecurrenceCalendar {
             calendar: calendar
         ) else { return nil }
         if let endDate = rule.endDate,
-           let exclusiveEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)),
-           next >= exclusiveEnd { return nil }
+           next >= calendar.startOfDay(for: endDate).addingDays(1) { return nil }
         return next
     }
 }

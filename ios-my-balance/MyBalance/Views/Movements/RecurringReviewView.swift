@@ -71,15 +71,11 @@ struct RecurringReviewView: View {
         guard rule.isActive else { return }
         isSaving = true
         let occurrenceDate = rule.nextOccurrence
-        let movements: [Movement]
-        do {
-            movements = try context.fetch(FetchDescriptor<Movement>())
-        } catch {
-            isSaving = false
-            saveError = error.localizedDescription
-            return
-        }
-        let duplicate = RecurrenceCalendar.alreadyRecorded(ruleID: rule.id, occurrence: occurrenceDate, movements: movements)
+        let duplicate = RecurrenceCalendar.alreadyRecorded(
+            ruleID: rule.id,
+            occurrence: occurrenceDate,
+            movements: (try? context.fetch(FetchDescriptor<Movement>())) ?? []
+        )
         guard !duplicate else {
             advanceRule()
             return

@@ -37,11 +37,6 @@ enum AppNotifications {
             await cancelAll()
             return
         }
-        let authorization = await center.notificationSettings().authorizationStatus
-        guard authorization == .authorized || authorization == .provisional || authorization == .ephemeral else {
-            await cancelAll()
-            return
-        }
 
         await refreshBudgetAlerts(settings: settings, movements: movements, budgets: budgets, categories: categories)
         await refreshRecurringReminders(recurringRules)
@@ -77,6 +72,7 @@ enum AppNotifications {
                     content.body = "Has alcanzado el \(threshold.percent)% de tu presupuesto. Llevas \(Money.format(spent)) de \(Money.format(budget.limitCents))."
                 }
                 content.sound = .default
+                let monthKey = String(BudgetAlertThreshold.notificationKey(categoryID: category.id, monthStart: monthStart, threshold: threshold).split(separator: ".").dropFirst(2).joined(separator: "."))
                 let id = "budget-\(category.id.uuidString)-\(monthKey)-\(threshold.rawValue)"
                 do {
                     try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))

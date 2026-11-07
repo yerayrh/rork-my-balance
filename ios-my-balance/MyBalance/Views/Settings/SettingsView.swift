@@ -38,7 +38,6 @@ struct SettingsView: View {
             currencySection
             securitySection
             notificationsSection
-            widgetSection
             recurringSection
             dataSection
             aboutSection
@@ -294,19 +293,6 @@ struct SettingsView: View {
             Text("Notificaciones")
         } footer: {
             Text("Los avisos se calculan en el iPhone. Cada umbral se notifica una sola vez por categoría y mes.")
-        }
-    }
-
-    private var widgetSection: some View {
-        Section {
-            Toggle("Mostrar datos en el widget", isOn: Binding(
-                get: { settings.widgetDataVisible },
-                set: { settings.widgetDataVisible = $0 }
-            ))
-        } header: {
-            Text("Widget")
-        } footer: {
-            Text("Al desactivarlo, los widgets ocultan importes y categorías. iOS también puede ocultar sus datos financieros cuando el dispositivo está bloqueado.")
         }
     }
 

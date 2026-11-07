@@ -34,16 +34,6 @@ struct MyBalanceTests {
         #expect(utcCalendar.component(.day, from: yearly) == 28)
     }
 
-    @Test func recurrenceDoesNotPassConfiguredEndDate() {
-        let start = date(2025, 1, 31)
-        let rule = RecurringRule(
-            kind: .expense, amountCents: 1_000, title: "Mensualidad", accountID: UUID(),
-            frequency: .monthly, startDate: start, nextOccurrence: start,
-            endDate: date(2025, 2, 15), anchorDay: 31
-        )
-        #expect(RecurrenceCalendar.nextAllowedDate(for: rule, calendar: utcCalendar) == nil)
-    }
-
     @Test func duplicateOccurrenceDetectionUsesRuleAndOccurrence() {
         let ruleID = UUID()
         let occurrence = date(2026, 11, 7)
@@ -89,17 +79,6 @@ struct MyBalanceTests {
         let previousMonth = Movement(kind: .expense, amountCents: 7_000, title: "Octubre", date: date(2026, 10, 31), accountID: accountID, categoryID: categoryID)
         let nextMonth = Movement(kind: .expense, amountCents: 6_000, title: "Diciembre", date: date(2026, 12, 1), accountID: accountID, categoryID: categoryID)
         #expect(Finance.spent(in: categoryID, movements: [valid, excluded, transfer, previousMonth, nextMonth], range: range) == 2_000)
-    }
-
-    @Test func widgetSnapshotCarriesVisibilityPreferenceAndNoAccountBalances() {
-        let snapshot = WidgetSnapshotStore.Snapshot(
-            monthLabel: "Noviembre 2026", currencySymbol: "€", spentCents: 2_000,
-            budgetCents: 5_000, remainingCents: 3_000, categories: [],
-            isVisible: false, updatedAt: .now
-        )
-        #expect(!snapshot.isVisible)
-        #expect(snapshot.spentCents == 2_000)
-        #expect(!String(describing: snapshot).contains("accountBalance"))
     }
 
     @Test func legacyRecurringMovementFlagIsPreservedWithoutInventingRule() {

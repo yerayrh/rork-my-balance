@@ -15,7 +15,6 @@ final class AppSettings {
         static let budgetAlert80 = "budgetAlert80"
         static let budgetAlert100 = "budgetAlert100"
         static let budgetAlertOver = "budgetAlertOver"
-        static let widgetData = "widgetDataVisible"
     }
 
     private let defaults = UserDefaults.standard
@@ -37,7 +36,6 @@ final class AppSettings {
     var budgetAlert80: Bool { didSet { defaults.set(budgetAlert80, forKey: Keys.budgetAlert80) } }
     var budgetAlert100: Bool { didSet { defaults.set(budgetAlert100, forKey: Keys.budgetAlert100) } }
     var budgetAlertOver: Bool { didSet { defaults.set(budgetAlertOver, forKey: Keys.budgetAlertOver) } }
-    var widgetDataVisible: Bool { didSet { defaults.set(widgetDataVisible, forKey: Keys.widgetData) } }
 
     init() {
         let d = UserDefaults.standard
@@ -53,7 +51,6 @@ final class AppSettings {
         budgetAlert80 = d.object(forKey: Keys.budgetAlert80) as? Bool ?? true
         budgetAlert100 = d.object(forKey: Keys.budgetAlert100) as? Bool ?? true
         budgetAlertOver = d.object(forKey: Keys.budgetAlertOver) as? Bool ?? false
-        widgetDataVisible = d.object(forKey: Keys.widgetData) as? Bool ?? true
         Money.symbol = CurrencyInfo.find(code).symbol
     }
 
@@ -74,7 +71,6 @@ enum AppTab: Hashable {
 @Observable
 final class AppRouter {
     var tab: AppTab = .home
-    var quickAddRequestID: UUID?
 }
 
 @Observable

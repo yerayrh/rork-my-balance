@@ -39,11 +39,6 @@ struct HomeView: View {
             .scrollIndicators(.hidden)
             .background(palette.canvas)
             .navigationTitle("Inicio")
-            .onChange(of: router.quickAddRequestID) { _, requestID in
-                guard requestID != nil else { return }
-                showNewMovement = true
-                router.quickAddRequestID = nil
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {

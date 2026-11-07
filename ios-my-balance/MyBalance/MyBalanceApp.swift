@@ -57,7 +57,7 @@ struct RootView: View {
         let budgetValues = budgets.map { "\($0.id.uuidString):\($0.limitCents)" }.joined(separator: "|")
         let categoryValues = categories.map { "\($0.id.uuidString):\($0.name):\($0.colorHex):\($0.kindRaw)" }.joined(separator: "|")
         let ruleValues = recurringRules.map { "\($0.id.uuidString):\($0.nextOccurrence.timeIntervalSince1970):\($0.isActive)" }.joined(separator: "|")
-        return [movementValues, budgetValues, categoryValues, ruleValues, String(settings.widgetDataVisible), String(settings.notificationsEnabled), String(settings.budgetAlert80), String(settings.budgetAlert100), String(settings.budgetAlertOver), String(settings.hasOnboarded), String(lockManager.isLocked), settings.currencyCode].joined(separator: "#")
+        return [movementValues, budgetValues, categoryValues, ruleValues, String(settings.notificationsEnabled), String(settings.budgetAlert80), String(settings.budgetAlert100), String(settings.budgetAlertOver), String(settings.hasOnboarded), String(lockManager.isLocked), settings.currencyCode].joined(separator: "#")
     }
 
     var body: some View {
@@ -113,7 +113,6 @@ struct RootView: View {
             }
             if phase == .active {
                 Task {
-                    await routeWidgetAction()
                     await refreshLocalFeatures()
                 }
             }
@@ -122,12 +121,6 @@ struct RootView: View {
 
     @MainActor
     private func refreshLocalFeatures() async {
-        WidgetSnapshotStore.publish(
-            movements: movements,
-            budgets: budgets,
-            categories: categories,
-            isVisible: settings.widgetDataVisible
-        )
         await AppNotifications.refresh(
             settings: settings,
             movements: movements,
@@ -142,17 +135,4 @@ struct RootView: View {
         })?.id
     }
 
-    @MainActor
-    private func routeWidgetAction() async {
-        guard let defaults = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID) else { return }
-        if defaults.bool(forKey: WidgetSnapshotStore.openBudgetsKey) {
-            defaults.set(false, forKey: WidgetSnapshotStore.openBudgetsKey)
-            router.tab = .budgets
-        }
-        if defaults.bool(forKey: WidgetSnapshotStore.quickAddKey) {
-            defaults.set(false, forKey: WidgetSnapshotStore.quickAddKey)
-            router.tab = .home
-            router.quickAddRequestID = UUID()
-        }
-    }
 }
