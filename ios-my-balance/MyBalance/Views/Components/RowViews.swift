@@ -119,12 +119,14 @@ struct MovementRow: View {
                     .monospacedDigit()
                     .foregroundStyle(amountColor)
                     .lineLimit(1)
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     if movement.isExcluded { ExcludedTag() }
                     if showDate {
                         Text(Fmt.date(movement.date))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
             }
