@@ -272,14 +272,6 @@ struct SettingsView: View {
             }
 
             Button {
-                exportText = Backup.movementsCSV(movements, lookup: Lookup(accounts: accounts, categories: categories))
-                exportFilename = "mybalance-movimientos"
-                showCSVExporter = true
-            } label: {
-                Label("Exportar movimientos CSV", systemImage: "tablecells")
-            }
-
-            Button {
                 showRestoreImporter = true
             } label: {
                 Label("Restaurar copia de seguridad", systemImage: "square.and.arrow.down")
@@ -318,7 +310,13 @@ struct SettingsView: View {
         } header: {
             Text("Acerca de")
         } footer: {
-            Text("App de finanzas personales sin cuentas ni conexión. Tus números son solo tuyos.")
+            HStack(spacing: 4) {
+                Text("Made by Yeray & Iván with")
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(.red)
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity)
         }
     }
 

@@ -12,19 +12,15 @@ struct StatsTab: View {
 
 struct StatsView: View {
     @Environment(\.palette) private var palette
-    @Environment(\.modelContext) private var context
     @Environment(AppRouter.self) private var router
 
     @Query(sort: \Movement.date, order: .reverse) private var movements: [Movement]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
     @Query(sort: \MovementCategory.sortOrder) private var categories: [MovementCategory]
-    @Query private var budgets: [Budget]
 
     @State private var period: StatsPeriod = .last6
     @State private var customStart = Date().addingMonths(-2)
     @State private var customEnd = Date()
-    @State private var showingBudgetForm = false
-    @State private var budgetToEdit: Budget?
 
     private var range: DateRange {
         period.range(customStart: customStart, customEnd: customEnd)
@@ -70,7 +66,6 @@ struct StatsView: View {
                     breakdownSection("Gastos por categoría", symbol: "arrow.up.right", slices: expenses, total: totals.expense, tint: palette.negative, lookup: lookup)
                     breakdownSection("Ingresos por categoría", symbol: "arrow.down.left", slices: incomes, total: totals.income, tint: palette.positive, lookup: lookup)
                 }
-                budgetsSection(lookup)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
@@ -79,9 +74,6 @@ struct StatsView: View {
         .scrollIndicators(.hidden)
         .background(palette.canvas)
         .navigationTitle("Estadísticas")
-        .sheet(isPresented: $showingBudgetForm, onDismiss: { budgetToEdit = nil }) {
-            BudgetFormView(budget: budgetToEdit)
-        }
     }
 
     private var periodPicker: some View {
@@ -407,112 +399,6 @@ struct StatsView: View {
         .contentShape(Rectangle())
     }
 
-    private func budgetsSection(_ lookup: Lookup) -> some View {
-        let now = Date()
-        let monthRange = DateRange.month(now)
-        let visible = budgets
-            .filter { lookup.category($0.categoryID) != nil }
-            .sorted { (lookup.category($0.categoryID)?.sortOrder ?? 0) < (lookup.category($1.categoryID)?.sortOrder ?? 0) }
-        let budgetedCategoryIDs = Set(budgets.map(\.categoryID))
-        let availableCategories = categories.filter { $0.kind == .expense && !budgetedCategoryIDs.contains($0.id) }
-        return VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Presupuestos de \(Fmt.monthYear(now).lowercased())", actionTitle: "Añadir", action: {
-                budgetToEdit = nil
-                showingBudgetForm = true
-            })
-            if visible.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Define un límite mensual para cada categoría de gasto y sigue cuánto llevas usado.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Button {
-                        budgetToEdit = nil
-                        showingBudgetForm = true
-                    } label: {
-                        Label("Crear presupuesto", systemImage: "plus.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .disabled(availableCategories.isEmpty)
-                    if availableCategories.isEmpty {
-                        Text("No hay categorías de gasto disponibles para presupuestar.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .card()
-            } else {
-                VStack(spacing: 16) {
-                    ForEach(visible) { b in
-                        if let cat = lookup.category(b.categoryID) {
-                            let spent = Finance.spent(in: b.categoryID, movements: movements, range: monthRange)
-                            let ratio = b.limitCents > 0 ? min(1, Double(spent) / Double(b.limitCents)) : 0
-                            let over = spent > b.limitCents
-                            VStack(spacing: 8) {
-                                HStack(spacing: 10) {
-                                    IconBadge(symbol: cat.icon, colorHex: cat.colorHex, size: 34)
-                                    Button {
-                                        budgetToEdit = b
-                                        showingBudgetForm = true
-                                    } label: {
-                                        HStack(spacing: 8) {
-                                            Text(cat.name)
-                                                .font(.subheadline.weight(.semibold))
-                                                .lineLimit(1)
-                                            Spacer(minLength: 4)
-                                            VStack(alignment: .trailing, spacing: 0) {
-                                                Text(Money.format(spent))
-                                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                                                    .monospacedDigit()
-                                                    .foregroundStyle(over ? palette.negative : .primary)
-                                                Text("de \(Money.format(b.limitCents))")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Editar presupuesto de \(cat.name)")
-                                    Menu {
-                                        Button {
-                                            budgetToEdit = b
-                                            showingBudgetForm = true
-                                        } label: {
-                                            Label("Editar", systemImage: "pencil")
-                                        }
-                                        Button(role: .destructive) {
-                                            context.delete(b)
-                                            try? context.save()
-                                        } label: {
-                                            Label("Eliminar", systemImage: "trash")
-                                        }
-                                    } label: {
-                                        Image(systemName: "ellipsis")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                            .frame(width: 28, height: 34)
-                                            .contentShape(Rectangle())
-                                    }
-                                    .accessibilityLabel("Opciones de presupuesto de \(cat.name)")
-                                }
-                                GeometryReader { geo in
-                                    Capsule().fill(Color.primary.opacity(0.07))
-                                        .overlay(alignment: .leading) {
-                                            Capsule().fill(over ? palette.negative : Color(hex: cat.colorHex))
-                                                .frame(width: spent == 0 ? 4 : max(6, geo.size.width * ratio))
-                                        }
-                                }
-                                .frame(height: 5)
-                            }
-                        }
-                    }
-                }
-                .padding(14)
-                .background(palette.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
-        }
-    }
 }
 
 private struct MonthlyBar: Identifiable {
