@@ -1,0 +1,50 @@
+workflows:
+  ios-simulator:
+    name: My Balance - iOS Simulator
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    working_directory: ios-my-balance
+    environment:
+      xcode: latest
+    scripts:
+      - name: Build for iOS Simulator
+        script: |
+          xcodebuild build \
+            -project MyBalance.xcodeproj \
+            -scheme MyBalance \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.dSYM
+      - /tmp/xcodebuild_logs/*.log
+
+  ios-adhoc-ipa:
+    name: My Balance - iPhone IPA (Ad Hoc)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    working_directory: ios-my-balance
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      xcode: latest
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: app.rork.az5buhimhitjfrma56m6x
+    scripts:
+      - name: Apply provisioning profiles
+        script: xcode-project use-profiles --project MyBalance.xcodeproj
+      - name: Build signed IPA
+        script: |
+          xcode-project build-ipa \
+            --project MyBalance.xcodeproj \
+            --scheme MyBalance
+    artifacts:
+      - ios-my-balance/build/ios/ipa/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Release-iphoneos/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Release-iphoneos/*.dSYM
+      - /tmp/xcodebuild_logs/*.log
