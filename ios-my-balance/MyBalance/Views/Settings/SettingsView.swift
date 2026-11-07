@@ -313,7 +313,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("Versión", value: "1.0")
+            LabeledContent("Versión", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")
             LabeledContent("Datos guardados", value: "En este iPhone")
         } header: {
             Text("Acerca de")
