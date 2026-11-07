@@ -1,0 +1,13 @@
+{
+  "apps": [
+    {
+      "name": "My Balance",
+      "path": "ios-my-balance",
+      "framework": "swift",
+      "settings": {
+        "swiftSibling": false
+      }
+    }
+  ],
+  "$schema": "https://rork.com/schema/rork.json"
+}
