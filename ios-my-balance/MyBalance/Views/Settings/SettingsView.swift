@@ -24,10 +24,12 @@ struct SettingsView: View {
     @Query private var budgets: [Budget]
 
     @State private var editingName = ""
-    @State private var showBackupExport = false
+    @State private var showCSVExporter = false
     @State private var showRestoreImporter = false
-    @State private var backupText = ""
+    @State private var exportText = ""
+    @State private var exportFilename = "mybalance-exportacion"
     @State private var restoreError: String?
+    @State private var exportError: String?
     @State private var restoreSummary: RestoreSummary?
     @State private var confirmWipe = false
     @State private var confirmRemoveDemo = false
@@ -47,8 +49,15 @@ struct SettingsView: View {
         .background(palette.canvas)
         .navigationTitle("Ajustes")
         .onAppear { editingName = settings.userName }
-        .sheet(isPresented: $showBackupExport) {
-            ShareSheet(items: [CSVDocument(text: backupText)])
+        .fileExporter(
+            isPresented: $showCSVExporter,
+            document: CSVDocument(text: exportText),
+            contentType: .commaSeparatedText,
+            defaultFilename: exportFilename
+        ) { result in
+            if case .failure(let error) = result {
+                exportError = error.localizedDescription
+            }
         }
         .fileImporter(
             isPresented: $showRestoreImporter,
@@ -60,6 +69,11 @@ struct SettingsView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             Text(restoreError ?? "")
+        }
+        .alert("No se pudo exportar", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
         }
         .alert("Copia restaurada", isPresented: Binding(get: { restoreSummary != nil }, set: { if !$0 { restoreSummary = nil } })) {
             Button("Entendido", role: .cancel) {}
@@ -218,7 +232,10 @@ struct SettingsView: View {
             if lockManager.availability().available {
                 Toggle("Bloquear con \(lockManager.availability().label)", isOn: Binding(
                         get: { settings.lockEnabled },
-                        set: { newValue in settings.lockEnabled = newValue }
+                        set: { newValue in
+                            settings.lockEnabled = newValue
+                            lockManager.isLocked = newValue
+                        }
                     )
                 )
             } else {
@@ -241,16 +258,25 @@ struct SettingsView: View {
         let demoCount = accounts.filter(\.isDemo).count
         return Section {
             Button {
-                backupText = Backup.makeBackup(
+                exportText = Backup.makeBackup(
                     accounts: accounts,
                     categories: categories,
                     movements: movements,
                     budgets: budgets,
                     settings: settings
                 )
-                showBackupExport = true
+                exportFilename = "mybalance-copia-seguridad"
+                showCSVExporter = true
             } label: {
                 Label("Exportar copia de seguridad", systemImage: "square.and.arrow.up")
+            }
+
+            Button {
+                exportText = Backup.movementsCSV(movements, lookup: Lookup(accounts: accounts, categories: categories))
+                exportFilename = "mybalance-movimientos"
+                showCSVExporter = true
+            } label: {
+                Label("Exportar movimientos CSV", systemImage: "tablecells")
             }
 
             Button {
@@ -313,14 +339,4 @@ struct SettingsView: View {
             }
         }
     }
-}
-
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

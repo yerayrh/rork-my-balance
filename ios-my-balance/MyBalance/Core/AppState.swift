@@ -77,7 +77,7 @@ final class LockManager {
     func availability() -> Availability {
         let ctx = LAContext()
         var error: NSError?
-        let ok = ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
+        let ok = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         let label: String
         switch ctx.biometryType {
         case .faceID: label = "Face ID"
@@ -92,7 +92,7 @@ final class LockManager {
         let ctx = LAContext()
         ctx.localizedCancelTitle = "Cancelar"
         do {
-            return try await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)
+            return try await ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
         } catch {
             return false
         }

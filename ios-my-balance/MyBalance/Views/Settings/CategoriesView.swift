@@ -62,7 +62,9 @@ struct CategoriesView: View {
                     .padding(.vertical, 20)
                 } else {
                     ForEach(visible) { c in
-                        Button { editing = c } label: {
+                        NavigationLink {
+                            CategoryMovementsView(category: c)
+                        } label: {
                             row(c, count: counts[c.id] ?? 0)
                         }
                         .buttonStyle(.plain)
@@ -81,7 +83,7 @@ struct CategoriesView: View {
             } header: {
                 Text("\(visible.count) \(visible.count == 1 ? "categoría" : "categorías")")
             } footer: {
-                Text("Toca una categoría para editarla. Desliza a la izquierda para eliminarla o pulsa «Ordenar» para cambiar el orden.")
+                Text("Toca una categoría para ver sus movimientos. Desliza a la izquierda o mantén pulsado para editarla o eliminarla; usa «Ordenar» para cambiar el orden.")
             }
             .listRowBackground(palette.surface)
 

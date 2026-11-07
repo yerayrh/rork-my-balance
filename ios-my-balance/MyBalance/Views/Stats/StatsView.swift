@@ -12,6 +12,7 @@ struct StatsTab: View {
 
 struct StatsView: View {
     @Environment(\.palette) private var palette
+    @Environment(\.modelContext) private var context
     @Environment(AppRouter.self) private var router
 
     @Query(sort: \Movement.date, order: .reverse) private var movements: [Movement]
@@ -22,6 +23,8 @@ struct StatsView: View {
     @State private var period: StatsPeriod = .last6
     @State private var customStart = Date().addingMonths(-2)
     @State private var customEnd = Date()
+    @State private var showingBudgetForm = false
+    @State private var budgetToEdit: Budget?
 
     private var range: DateRange {
         period.range(customStart: customStart, customEnd: customEnd)
@@ -35,10 +38,9 @@ struct StatsView: View {
         let prevTotals = Finance.totals(Finance.statMovements(movements, range: prevRange))
         let expenses = Finance.breakdown(inRange, kind: .expense, lookup: lookup)
         let incomes = Finance.breakdown(inRange, kind: .income, lookup: lookup)
-        let monthly = range.monthStarts.map { month -> MonthlyBar in
-            let t = Finance.totals(Finance.statMovements(movements, range: .month(month)))
-            return MonthlyBar(month: month, income: t.income, expense: t.expense)
-        }
+        let chartMonthCount = range.monthStarts.count
+        let chartUnit = chartMonthCount <= 6 ? "mes" : (chartMonthCount <= 24 ? "trimestre" : "año")
+        let chartBars = makeChartBars(for: range)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -64,11 +66,11 @@ struct StatsView: View {
                     }
                 } else {
                     totalsHeader(totals, prev: prevTotals)
-                    monthlyChart(monthly)
+                    monthlyChart(chartBars, unit: chartUnit)
                     breakdownSection("Gastos por categoría", symbol: "arrow.up.right", slices: expenses, total: totals.expense, tint: palette.negative)
                     breakdownSection("Ingresos por categoría", symbol: "arrow.down.left", slices: incomes, total: totals.income, tint: palette.positive)
-                    budgetsSection(lookup)
                 }
+                budgetsSection(lookup)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
@@ -77,6 +79,9 @@ struct StatsView: View {
         .scrollIndicators(.hidden)
         .background(palette.canvas)
         .navigationTitle("Estadísticas")
+        .sheet(isPresented: $showingBudgetForm, onDismiss: { budgetToEdit = nil }) {
+            BudgetFormView(budget: budgetToEdit)
+        }
     }
 
     private var periodPicker: some View {
@@ -153,12 +158,12 @@ struct StatsView: View {
         return "\(Fmt.date(range.start)) – \(Fmt.date(range.end.addingDays(-1)))"
     }
 
-    private func monthlyChart(_ bars: [MonthlyBar]) -> some View {
+    private func monthlyChart(_ bars: [MonthlyBar], unit: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Ingresos y gastos por mes")
+            Text("Ingresos y gastos por \(unit)")
                 .font(.headline)
             if bars.count < 2 {
-                Text("Se necesitan al menos dos meses de datos para la gráfica.")
+                Text("Se necesitan al menos dos periodos para mostrar la gráfica.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -203,7 +208,7 @@ struct StatsView: View {
                 }
                 .frame(height: 230)
                 .padding(.top, 4)
-                .accessibilityLabel("Comparativa mensual de ingresos y gastos")
+                .accessibilityLabel("Comparativa de ingresos y gastos por \(unit)")
 
                 HStack(spacing: 16) {
                     legendDot(palette.positive, "Ingresos")
@@ -228,6 +233,59 @@ struct StatsView: View {
         return String(s.split(separator: " ").first?.prefix(3) ?? "")
     }
 
+    private func makeChartBars(for range: DateRange) -> [MonthlyBar] {
+        let months = range.monthStarts.map { month -> MonthlyBar in
+            let clippedRange = DateRange(
+                start: max(month, range.start),
+                end: min(month.addingMonths(1), range.end)
+            )
+            let totals = Finance.totals(Finance.statMovements(movements, range: clippedRange))
+            return MonthlyBar(month: month, label: "", income: totals.income, expense: totals.expense)
+        }
+
+        if months.count <= 6 {
+            let years = Set(months.map { Calendar.app.component(.year, from: $0.month) })
+            return months.map { bar in
+                let year = Calendar.app.component(.year, from: bar.month)
+                let label = years.count > 1 ? "\(monthShort(bar.month)) \(String(format: "%02d", year % 100))" : monthShort(bar.month)
+                return MonthlyBar(month: bar.month, label: label, income: bar.income, expense: bar.expense)
+            }
+        }
+
+        if months.count <= 24 {
+            let groups = Dictionary(grouping: months) { bar -> String in
+                let year = Calendar.app.component(.year, from: bar.month)
+                let month = Calendar.app.component(.month, from: bar.month)
+                let quarter = (month - 1) / 3 + 1
+                return "\(year)-\(quarter)"
+            }
+            return groups.values.map { group in
+                let first = group[0]
+                let year = Calendar.app.component(.year, from: first.month)
+                let month = Calendar.app.component(.month, from: first.month)
+                let quarter = (month - 1) / 3 + 1
+                return MonthlyBar(
+                    month: first.month,
+                    label: "T\(quarter) \(year)",
+                    income: group.reduce(0) { $0 + $1.income },
+                    expense: group.reduce(0) { $0 + $1.expense }
+                )
+            }
+            .sorted { $0.month < $1.month }
+        }
+
+        let groups = Dictionary(grouping: months) { Calendar.app.component(.year, from: $0.month) }
+        return groups.map { year, group in
+            MonthlyBar(
+                month: group[0].month,
+                label: String(year),
+                income: group.reduce(0) { $0 + $1.income },
+                expense: group.reduce(0) { $0 + $1.expense }
+            )
+        }
+        .sorted { $0.month < $1.month }
+    }
+
     private struct ChartPoint: Identifiable {
         let id: String
         let label: String
@@ -236,16 +294,10 @@ struct StatsView: View {
     }
 
     private func chartPoints(_ bars: [MonthlyBar]) -> [ChartPoint] {
-        let withYear = bars.count > 12
         return bars.flatMap { bar -> [ChartPoint] in
-            var label = monthShort(bar.month).capitalized
-            if withYear {
-                let y = Calendar.current.component(.year, from: bar.month) % 100
-                label += String(format: " %02d", y)
-            }
             return [
-                ChartPoint(id: label + "-i", label: label, kind: "Ingresos", value: Double(bar.income) / 100),
-                ChartPoint(id: label + "-g", label: label, kind: "Gastos", value: Double(bar.expense) / 100)
+                ChartPoint(id: bar.label + "-i", label: bar.label, kind: "Ingresos", value: Double(bar.income) / 100),
+                ChartPoint(id: bar.label + "-g", label: bar.label, kind: "Gastos", value: Double(bar.expense) / 100)
             ]
         }
     }
@@ -304,29 +356,7 @@ struct StatsView: View {
 
                     VStack(spacing: 14) {
                         ForEach(slices.prefix(8)) { s in
-                            VStack(spacing: 6) {
-                                HStack(spacing: 10) {
-                                    IconBadge(symbol: s.icon, colorHex: s.colorHex, size: 32)
-                                    Text(s.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                                    Spacer()
-                                    VStack(alignment: .trailing, spacing: 0) {
-                                        Text(Money.format(s.cents))
-                                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                                            .monospacedDigit()
-                                        Text(Fmt.percent(s.share))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                GeometryReader { geo in
-                                    Capsule().fill(Color.primary.opacity(0.07))
-                                        .overlay(alignment: .leading) {
-                                            Capsule().fill(Color(hex: s.colorHex))
-                                                .frame(width: max(6, geo.size.width * s.share))
-                                        }
-                                }
-                                .frame(height: 6)
-                            }
+                            breakdownRow(s, lookup: lookup)
                         }
                     }
                 }
@@ -335,53 +365,151 @@ struct StatsView: View {
         }
     }
 
+    @ViewBuilder
+    private func breakdownRow(_ slice: CategorySlice, lookup: Lookup) -> some View {
+        if let category = lookup.category(slice.categoryID) {
+            NavigationLink {
+                CategoryMovementsView(category: category)
+            } label: {
+                breakdownRowContent(slice)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Muestra todos los movimientos de esta categoría")
+        } else {
+            breakdownRowContent(slice)
+        }
+    }
+
+    private func breakdownRowContent(_ slice: CategorySlice) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                IconBadge(symbol: slice.icon, colorHex: slice.colorHex, size: 32)
+                Text(slice.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(Money.format(slice.cents))
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .monospacedDigit()
+                    Text(Fmt.percent(slice.share))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            GeometryReader { geo in
+                Capsule().fill(Color.primary.opacity(0.07))
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(Color(hex: slice.colorHex))
+                            .frame(width: max(6, geo.size.width * slice.share))
+                    }
+            }
+            .frame(height: 6)
+        }
+        .contentShape(Rectangle())
+    }
+
     private func budgetsSection(_ lookup: Lookup) -> some View {
         let now = Date()
         let monthRange = DateRange.month(now)
-        let visible = budgets.filter { b in lookup.category(b.categoryID) != nil }
+        let visible = budgets
+            .filter { lookup.category($0.categoryID) != nil }
+            .sorted { (lookup.category($0.categoryID)?.sortOrder ?? 0) < (lookup.category($1.categoryID)?.sortOrder ?? 0) }
+        let budgetedCategoryIDs = Set(budgets.map(\.categoryID))
+        let availableCategories = categories.filter { $0.kind == .expense && !budgetedCategoryIDs.contains($0.id) }
         return VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Presupuestos de \(Fmt.monthYear(now).lowercased())")
+            SectionHeader(title: "Presupuestos de \(Fmt.monthYear(now).lowercased())", actionTitle: "Añadir", action: {
+                budgetToEdit = nil
+                showingBudgetForm = true
+            })
             if visible.isEmpty {
-                Text("Los presupuestos que crees en futuras versiones aparecerán aquí.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .card()
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Define un límite mensual para cada categoría de gasto y sigue cuánto llevas usado.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        budgetToEdit = nil
+                        showingBudgetForm = true
+                    } label: {
+                        Label("Crear presupuesto", systemImage: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .disabled(availableCategories.isEmpty)
+                    if availableCategories.isEmpty {
+                        Text("No hay categorías de gasto disponibles para presupuestar.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .card()
             } else {
                 VStack(spacing: 16) {
                     ForEach(visible) { b in
                         if let cat = lookup.category(b.categoryID) {
                             let spent = Finance.spent(in: b.categoryID, movements: movements, range: monthRange)
-                            let ratio = b.limitCents > 0 ? Double(spent) / Double(b.limitCents) : 0
+                            let ratio = b.limitCents > 0 ? min(1, Double(spent) / Double(b.limitCents)) : 0
                             let over = spent > b.limitCents
-                            VStack(spacing: 6) {
+                            VStack(spacing: 8) {
                                 HStack(spacing: 10) {
-                                    IconBadge(symbol: cat.icon, colorHex: cat.colorHex, size: 32)
-                                    Text(cat.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                                    Spacer()
-                                    VStack(alignment: .trailing, spacing: 0) {
-                                        Text(Money.format(spent))
-                                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                                            .monospacedDigit()
-                                            .foregroundStyle(over ? palette.negative : .primary)
-                                        Text("de \(Money.format(b.limitCents))")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                                    IconBadge(symbol: cat.icon, colorHex: cat.colorHex, size: 34)
+                                    Button {
+                                        budgetToEdit = b
+                                        showingBudgetForm = true
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Text(cat.name)
+                                                .font(.subheadline.weight(.semibold))
+                                                .lineLimit(1)
+                                            Spacer(minLength: 4)
+                                            VStack(alignment: .trailing, spacing: 0) {
+                                                Text(Money.format(spent))
+                                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                                    .monospacedDigit()
+                                                    .foregroundStyle(over ? palette.negative : .primary)
+                                                Text("de \(Money.format(b.limitCents))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .contentShape(Rectangle())
                                     }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Editar presupuesto de \(cat.name)")
+                                    Menu {
+                                        Button {
+                                            budgetToEdit = b
+                                            showingBudgetForm = true
+                                        } label: {
+                                            Label("Editar", systemImage: "pencil")
+                                        }
+                                        Button(role: .destructive) {
+                                            context.delete(b)
+                                            try? context.save()
+                                        } label: {
+                                            Label("Eliminar", systemImage: "trash")
+                                        }
+                                    } label: {
+                                        Image(systemName: "ellipsis")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 28, height: 34)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .accessibilityLabel("Opciones de presupuesto de \(cat.name)")
                                 }
                                 GeometryReader { geo in
                                     Capsule().fill(Color.primary.opacity(0.07))
                                         .overlay(alignment: .leading) {
                                             Capsule().fill(over ? palette.negative : Color(hex: cat.colorHex))
-                                                .frame(width: min(geo.size.width, max(6, geo.size.width * ratio)))
+                                                .frame(width: spent == 0 ? 4 : max(6, geo.size.width * ratio))
                                         }
                                 }
-                                .frame(height: 6)
+                                .frame(height: 5)
                             }
                         }
                     }
                 }
-                .card()
+                .padding(14)
+                .background(palette.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
         }
     }
@@ -389,6 +517,7 @@ struct StatsView: View {
 
 private struct MonthlyBar: Identifiable {
     let month: Date
+    let label: String
     let income: Int
     let expense: Int
     var id: Date { month }

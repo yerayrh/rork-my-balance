@@ -39,6 +39,7 @@ struct MyBalanceApp: App {
 
 /// Tab bar + lock gate + onboarding.
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppSettings.self) private var settings
     @Environment(AppRouter.self) private var router
     @Environment(LockManager.self) private var lockManager
@@ -79,5 +80,10 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.25), value: lockManager.isLocked)
         .animation(.easeOut(duration: 0.25), value: settings.hasOnboarded)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background, settings.lockEnabled {
+                lockManager.isLocked = true
+            }
+        }
     }
 }
