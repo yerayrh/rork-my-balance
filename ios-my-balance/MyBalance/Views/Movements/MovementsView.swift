@@ -67,12 +67,13 @@ struct MovementsView: View {
 
     var body: some View {
         let lookup = Lookup(accounts: accounts, categories: categories)
+        let visibleMovements = filtered
 
         Group {
             if movements.isEmpty {
                 emptyState
             } else {
-                list(lookup)
+                list(lookup, movements: visibleMovements)
             }
         }
         .background(palette.canvas)
@@ -95,12 +96,12 @@ struct MovementsView: View {
         .padding(20)
     }
 
-    private func list(_ lookup: Lookup) -> some View {
+    private func list(_ lookup: Lookup, movements: [Movement]) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 filters
 
-                if filtered.isEmpty {
+                if movements.isEmpty {
                     Text("Ningún movimiento coincide con los filtros.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -108,8 +109,8 @@ struct MovementsView: View {
                         .card()
                         .padding(.top, 8)
                 } else {
-                    summary
-                    groups(lookup)
+                    summary(movements)
+                    groups(lookup, movements: movements)
                 }
             }
             .padding(.horizontal, 20)
@@ -167,8 +168,8 @@ struct MovementsView: View {
         }
     }
 
-    private var summary: some View {
-        let t = Finance.totals(filtered)
+    private func summary(_ movements: [Movement]) -> some View {
+        let t = Finance.totals(movements)
         return HStack(spacing: 10) {
             MetricTile(title: "Ingresos", cents: t.income, symbol: "arrow.down.left", tint: palette.positive, fillHex: "#EAFAF4")
             MetricTile(title: "Gastos", cents: t.expense, symbol: "arrow.up.right", tint: palette.negative, fillHex: "#FDEFF6")
@@ -176,8 +177,8 @@ struct MovementsView: View {
         }
     }
 
-    private func groups(_ lookup: Lookup) -> some View {
-        let grouped = Dictionary(grouping: filtered) { $0.date.startOfDay }
+    private func groups(_ lookup: Lookup, movements: [Movement]) -> some View {
+        let grouped = Dictionary(grouping: movements) { $0.date.startOfDay }
         let days = grouped.keys.sorted().reversed()
         return VStack(alignment: .leading, spacing: 18) {
             ForEach(Array(days.enumerated()), id: \.element) { _, day in

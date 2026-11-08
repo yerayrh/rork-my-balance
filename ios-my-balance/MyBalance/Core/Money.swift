@@ -160,15 +160,7 @@ enum Fmt {
         return f
     }()
 
-    private static let fileFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = es
-        f.dateFormat = "dd-MM-yyyy"
-        return f
-    }()
-
     static func date(_ d: Date) -> String { dayFormatter.string(from: d) }
-    static func fileDate(_ d: Date) -> String { fileFormatter.string(from: d) }
 
     static func monthYear(_ d: Date) -> String {
         monthYearFormatter.string(from: d).capitalizedFirst
@@ -221,10 +213,6 @@ extension Date {
 
     var startOfYear: Date {
         Calendar.app.date(from: Calendar.app.dateComponents([.year], from: self)) ?? self
-    }
-
-    var startOfWeek: Date {
-        Calendar.app.dateInterval(of: .weekOfYear, for: self)?.start ?? startOfDay
     }
 
     func addingMonths(_ n: Int) -> Date {

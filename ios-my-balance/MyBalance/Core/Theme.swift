@@ -88,7 +88,6 @@ struct Palette {
     var isDark: Bool
     var positive: Color = Color(hex: "#19C37D")
     var negative: Color = Color(hex: "#FF4D6D")
-    var warning: Color = Color(hex: "#FF9F0A")
 
     static func make(theme: AppTheme, dark: Bool) -> Palette {
         let accentHex = dark ? theme.accentDark : theme.accentLight

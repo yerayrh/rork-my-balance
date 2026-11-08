@@ -67,12 +67,6 @@ final class AppSettings {
 
     var theme: AppTheme { AppTheme.find(themeID) }
     var currency: CurrencyInfo { CurrencyInfo.find(currencyCode) }
-
-    func resetProfile() {
-        userName = ""
-        lockEnabled = false
-        hasOnboarded = false
-    }
 }
 
 enum AppTab: Hashable {
