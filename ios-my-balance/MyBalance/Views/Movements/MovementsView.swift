@@ -44,6 +44,10 @@ struct MovementsView: View {
     @State private var showNew = false
     @State private var editing: Movement?
 
+    private var availableCategories: [MovementCategory] {
+        categories(for: filter)
+    }
+
     private var filtered: [Movement] {
         let q = query.trimmed.lowercased()
         return movements.filter { m in
@@ -124,7 +128,13 @@ struct MovementsView: View {
                 HStack(spacing: 8) {
                     ForEach(FilterKind.allCases) { k in
                         Chip(title: k.label, symbol: k.symbol, selected: filter == k) {
-                            withAnimation(.snappy(duration: 0.25)) { filter = k }
+                            withAnimation(.snappy(duration: 0.25)) {
+                                filter = k
+                                if let categoryFilter,
+                                   !categories(for: k).contains(where: { $0.id == categoryFilter }) {
+                                    self.categoryFilter = nil
+                                }
+                            }
                         }
                     }
                 }
@@ -144,7 +154,7 @@ struct MovementsView: View {
                 }
                 Picker("Categoría", selection: $categoryFilter) {
                     Text("Todas las categorías").tag(UUID?.none)
-                    ForEach(categories) { c in
+                    ForEach(availableCategories) { c in
                         Text(c.name).tag(UUID?.some(c.id))
                     }
                 }
@@ -164,6 +174,19 @@ struct MovementsView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(accountFilter == nil && categoryFilter == nil ? .secondary : palette.accent)
             }
+        }
+    }
+
+    private func categories(for filter: FilterKind) -> [MovementCategory] {
+        switch filter {
+        case .all:
+            categories
+        case .expense:
+            categories.filter { $0.kind == .expense }
+        case .income:
+            categories.filter { $0.kind == .income }
+        case .transfer:
+            []
         }
     }
 
