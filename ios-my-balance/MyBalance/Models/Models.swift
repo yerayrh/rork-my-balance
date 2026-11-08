@@ -16,6 +16,14 @@ enum MovementKind: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    var pluralLabel: String {
+        switch self {
+        case .expense: "Gastos"
+        case .income: "Ingresos"
+        case .transfer: "Transferencias"
+        }
+    }
+
     var categoryKind: CategoryKind? {
         switch self {
         case .expense: .expense

@@ -226,21 +226,12 @@ struct StatsView: View {
     }
 
     private func makeChartBars(for range: DateRange) -> [MonthlyBar] {
-        var totalsByMonth: [Date: Totals] = [:]
-        for movement in movements where !movement.isExcluded && range.contains(movement.date) {
-            let month = movement.date.startOfMonth
-            switch movement.kind {
-            case .income:
-                totalsByMonth[month, default: Totals()].income += movement.amountCents
-            case .expense:
-                totalsByMonth[month, default: Totals()].expense += movement.amountCents
-            case .transfer:
-                continue
-            }
-        }
-
         let months = range.monthStarts.map { month -> MonthlyBar in
-            let totals = totalsByMonth[month] ?? Totals()
+            let clippedRange = DateRange(
+                start: max(month, range.start),
+                end: min(month.addingMonths(1), range.end)
+            )
+            let totals = Finance.totals(Finance.statMovements(movements, range: clippedRange))
             return MonthlyBar(month: month, label: "", income: totals.income, expense: totals.expense)
         }
 

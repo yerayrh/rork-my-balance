@@ -24,10 +24,10 @@ final class ShortcutFinanceStore {
             .map { ShortcutAccount(id: $0.id, name: $0.name) }
     }
 
-    func categories(for kind: CategoryKind) throws -> [ShortcutCategory] {
+    func categories(for kind: CategoryKind) throws -> [ShortcutCategoryOption] {
         try container.mainContext.fetch(FetchDescriptor<MovementCategory>(sortBy: [SortDescriptor(\.sortOrder)]))
             .filter { $0.kind == kind }
-            .map { ShortcutCategory(id: $0.id, name: $0.name) }
+            .map { ShortcutCategoryOption(id: $0.id, name: $0.name) }
     }
 
     func saveMovement(
@@ -135,9 +135,29 @@ struct ShortcutAccount: AppEntity {
     }
 }
 
-struct ShortcutCategory: AppEntity {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Categoría")
-    static var defaultQuery = ShortcutCategoryQuery()
+struct ShortcutCategoryOption: Sendable {
+    var id: UUID
+    var name: String
+}
+
+struct ShortcutExpenseCategory: AppEntity {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Categoría de gasto")
+    static var defaultQuery = ShortcutExpenseCategoryQuery()
+
+    var id: UUID
+    @Property(title: "Nombre") var name: String
+
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+
+    init(id: UUID, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
+struct ShortcutIncomeCategory: AppEntity {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Categoría de ingreso")
+    static var defaultQuery = ShortcutIncomeCategoryQuery()
 
     var id: UUID
     @Property(title: "Nombre") var name: String
@@ -163,19 +183,35 @@ struct ShortcutAccountQuery: EntityQuery {
     }
 }
 
-struct ShortcutCategoryQuery: EntityQuery {
+struct ShortcutExpenseCategoryQuery: EntityQuery {
     @Dependency private var store: ShortcutFinanceStore
 
-    func entities(for identifiers: [UUID]) async throws -> [ShortcutCategory] {
-        let expenses = try await store.categories(for: .expense)
-        let incomes = try await store.categories(for: .income)
-        return (expenses + incomes).filter { identifiers.contains($0.id) }
+    func entities(for identifiers: [UUID]) async throws -> [ShortcutExpenseCategory] {
+        let categories = try await store.categories(for: .expense)
+        return categories
+            .filter { identifiers.contains($0.id) }
+            .map { ShortcutExpenseCategory(id: $0.id, name: $0.name) }
     }
 
-    func suggestedEntities() async throws -> [ShortcutCategory] {
-        let expenses = try await store.categories(for: .expense)
-        let incomes = try await store.categories(for: .income)
-        return expenses + incomes
+    func suggestedEntities() async throws -> [ShortcutExpenseCategory] {
+        let categories = try await store.categories(for: .expense)
+        return categories.map { ShortcutExpenseCategory(id: $0.id, name: $0.name) }
+    }
+}
+
+struct ShortcutIncomeCategoryQuery: EntityQuery {
+    @Dependency private var store: ShortcutFinanceStore
+
+    func entities(for identifiers: [UUID]) async throws -> [ShortcutIncomeCategory] {
+        let categories = try await store.categories(for: .income)
+        return categories
+            .filter { identifiers.contains($0.id) }
+            .map { ShortcutIncomeCategory(id: $0.id, name: $0.name) }
+    }
+
+    func suggestedEntities() async throws -> [ShortcutIncomeCategory] {
+        let categories = try await store.categories(for: .income)
+        return categories.map { ShortcutIncomeCategory(id: $0.id, name: $0.name) }
     }
 }
 
@@ -185,7 +221,7 @@ struct AddExpenseShortcutIntent: AppIntent {
     static var openAppWhenRun = false
 
     @Parameter(title: "Importe") var amount: Double
-    @Parameter(title: "Categoría") var category: ShortcutCategory
+    @Parameter(title: "Categoría de gasto") var category: ShortcutExpenseCategory
     @Parameter(title: "Cuenta") var account: ShortcutAccount
     @Parameter(title: "Fecha") var date: Date
     @Parameter(title: "Nota", default: nil) var note: String?
@@ -208,7 +244,7 @@ struct AddIncomeShortcutIntent: AppIntent {
     static var openAppWhenRun = false
 
     @Parameter(title: "Importe") var amount: Double
-    @Parameter(title: "Categoría") var category: ShortcutCategory
+    @Parameter(title: "Categoría de ingreso") var category: ShortcutIncomeCategory
     @Parameter(title: "Cuenta") var account: ShortcutAccount
     @Parameter(title: "Fecha") var date: Date
     @Parameter(title: "Nota", default: nil) var note: String?

@@ -129,29 +129,8 @@ enum Finance {
     }
 
     static func balances(_ accounts: [Account], _ movements: [Movement]) -> [UUID: Int] {
-        var result = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.initialBalanceCents) })
-        let startDates = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.initialDate.startOfDay) })
-
-        for movement in movements {
-            switch movement.kind {
-            case .income:
-                if let start = startDates[movement.accountID], movement.date >= start {
-                    result[movement.accountID, default: 0] += movement.amountCents
-                }
-            case .expense:
-                if let start = startDates[movement.accountID], movement.date >= start {
-                    result[movement.accountID, default: 0] -= movement.amountCents
-                }
-            case .transfer:
-                if let start = startDates[movement.accountID], movement.date >= start {
-                    result[movement.accountID, default: 0] -= movement.amountCents
-                }
-                if let accountID = movement.toAccountID,
-                   let start = startDates[accountID], movement.date >= start {
-                    result[accountID, default: 0] += movement.amountCents
-                }
-            }
-        }
+        var result: [UUID: Int] = [:]
+        for a in accounts { result[a.id] = balance(of: a, in: movements) }
         return result
     }
 
@@ -179,44 +158,13 @@ enum Finance {
     }
 
     static func patrimonySeries(_ accounts: [Account], _ movements: [Movement], from: Date, to: Date = .now, buckets: Int = 24) -> [BalancePoint] {
-        guard !accounts.isEmpty, buckets > 0 else { return [] }
+        guard !accounts.isEmpty else { return [] }
         let start = min(from, to.addingDays(-1))
         let step = to.timeIntervalSince(start) / Double(buckets)
-        let startDates = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.initialDate.startOfDay) })
-        var events = accounts.map { (date: $0.initialDate.startOfDay, cents: $0.initialBalanceCents) }
-
-        for movement in movements {
-            switch movement.kind {
-            case .income:
-                if let accountStart = startDates[movement.accountID], movement.date >= accountStart {
-                    events.append((movement.date, movement.amountCents))
-                }
-            case .expense:
-                if let accountStart = startDates[movement.accountID], movement.date >= accountStart {
-                    events.append((movement.date, -movement.amountCents))
-                }
-            case .transfer:
-                if let accountStart = startDates[movement.accountID], movement.date >= accountStart {
-                    events.append((movement.date, -movement.amountCents))
-                }
-                if let accountID = movement.toAccountID,
-                   let accountStart = startDates[accountID], movement.date >= accountStart {
-                    events.append((movement.date, movement.amountCents))
-                }
-            }
-        }
-        events.sort { $0.date < $1.date }
-
         var points: [BalancePoint] = []
-        var eventIndex = 0
-        var runningTotal = 0
         for i in 0..<buckets {
             let d = start.addingTimeInterval(step * Double(i))
-            while eventIndex < events.count && events[eventIndex].date < d {
-                runningTotal += events[eventIndex].cents
-                eventIndex += 1
-            }
-            points.append(BalancePoint(date: d, cents: runningTotal))
+            points.append(BalancePoint(date: d, cents: total(accounts, movements, before: d)))
         }
         points.append(BalancePoint(date: to, cents: total(accounts, movements)))
         return points
@@ -274,12 +222,8 @@ enum Finance {
     }
 
     static func spent(in categoryID: UUID, movements: [Movement], range: DateRange) -> Int {
-        movements.reduce(into: 0) { total, movement in
-            guard movement.kind == .expense,
-                  !movement.isExcluded,
-                  movement.categoryID == categoryID,
-                  range.contains(movement.date) else { return }
-            total += movement.amountCents
-        }
+        statMovements(movements, range: range, categoryID: categoryID)
+            .filter { $0.kind == .expense }
+            .reduce(0) { $0 + $1.amountCents }
     }
 }

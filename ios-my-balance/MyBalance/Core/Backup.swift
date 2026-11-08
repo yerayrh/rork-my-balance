@@ -230,4 +230,30 @@ enum Backup {
         return RestoreSummary(accounts: newAccounts.count, categories: newCategories.count, movements: newMovements.count, budgets: newBudgets.count, recurringRules: newRules.count)
     }
 
+    // MARK: Human-readable movements CSV (Spanish Excel style)
+
+    static func movementsCSV(_ movements: [Movement], lookup: Lookup) -> String {
+        var lines = [CSV.row(["Fecha", "Tipo", "Descripción", "Importe", "Moneda", "Cuenta", "Cuenta destino", "Categoría", "Notas", "Excluido de estadísticas"], delimiter: ";")]
+        for m in movements.sorted(by: { $0.date > $1.date }) {
+            let signed: Int = switch m.kind {
+            case .expense: -m.amountCents
+            case .income: m.amountCents
+            case .transfer: m.amountCents
+            }
+            let amount = (signed < 0 ? "-" : "") + Money.editString(abs(signed))
+            lines.append(CSV.row([
+                Fmt.date(m.date),
+                m.kind.label,
+                m.title,
+                amount,
+                Money.symbol,
+                lookup.accountName(m.accountID),
+                m.kind == .transfer ? lookup.accountName(m.toAccountID) : "",
+                lookup.category(m.categoryID)?.name ?? "",
+                m.notes,
+                m.isExcluded ? "Sí" : "No",
+            ], delimiter: ";"))
+        }
+        return "\u{FEFF}" + lines.joined(separator: "\r\n") + "\r\n"
+    }
 }
