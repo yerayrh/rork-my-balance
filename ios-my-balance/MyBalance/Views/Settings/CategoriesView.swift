@@ -175,9 +175,6 @@ struct CategoriesView: View {
                     .padding(.vertical, 3)
                     .background(palette.accent.opacity(0.12), in: Capsule())
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
         }
         .contentShape(Rectangle())
     }
