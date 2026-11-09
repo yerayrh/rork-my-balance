@@ -10,6 +10,7 @@ struct CategoriesView: View {
     @Query(sort: \MovementCategory.sortOrder) private var categories: [MovementCategory]
     @Query private var movements: [Movement]
     @Query private var budgets: [Budget]
+    @Query private var recurringRules: [RecurringRule]
 
     @State private var kind: CategoryKind = .expense
     @State private var showNew = false
@@ -138,10 +139,12 @@ struct CategoriesView: View {
             Button("Eliminar categoría", role: .destructive) { delete() }
         } message: {
             let n = toDelete.map { counts[$0.id] ?? 0 } ?? 0
+            let ruleCount = toDelete.map { category in recurringRules.filter { $0.categoryID == category.id }.count } ?? 0
+            let budgetCount = toDelete.map { category in budgets.filter { $0.categoryID == category.id }.count } ?? 0
             if n > 0 {
-                Text("\(n) \(n == 1 ? "movimiento quedará" : "movimientos quedarán") sin categoría. Los saldos no cambian.")
+                Text("\(n) \(n == 1 ? "movimiento quedará" : "movimientos quedarán") sin categoría. \(ruleCount) \(ruleCount == 1 ? "regla recurrente perderá" : "reglas recurrentes perderán") la categoría y se eliminarán \(budgetCount) \(budgetCount == 1 ? "presupuesto" : "presupuestos") asociado\(budgetCount == 1 ? "" : "s"). Los saldos no cambian.")
             } else {
-                Text("Esta categoría no tiene movimientos.")
+                Text("La categoría se quitará de \(ruleCount) \(ruleCount == 1 ? "regla recurrente" : "reglas recurrentes") y se eliminarán \(budgetCount) \(budgetCount == 1 ? "presupuesto" : "presupuestos") asociado\(budgetCount == 1 ? "" : "s").")
             }
         }
         .confirmationDialog("¿Restaurar categorías predefinidas?", isPresented: $confirmRestore, titleVisibility: .visible) {
@@ -198,6 +201,7 @@ struct CategoriesView: View {
         do {
             withAnimation(.snappy) {
                 for m in movements where m.categoryID == id { m.categoryID = nil }
+                for rule in recurringRules where rule.categoryID == id { rule.categoryID = nil }
                 for b in budgets where b.categoryID == id { context.delete(b) }
                 context.delete(c)
             }
