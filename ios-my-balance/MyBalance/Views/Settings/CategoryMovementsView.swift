@@ -3,6 +3,7 @@ import SwiftData
 
 struct CategoryMovementsView: View {
     let category: MovementCategory
+    var periodRange: DateRange? = nil
 
     @Environment(\.palette) private var palette
     @Query(sort: \Movement.date, order: .reverse) private var allMovements: [Movement]
@@ -12,14 +13,21 @@ struct CategoryMovementsView: View {
     @State private var editing: Movement?
 
     private var movements: [Movement] {
-        allMovements.filter { $0.categoryID == category.id }
+        guard let periodRange else {
+            return allMovements.filter { $0.categoryID == category.id }
+        }
+        return Finance.statMovements(allMovements, range: periodRange, categoryID: category.id)
+            .filter { $0.kind == .expense }
     }
 
     var body: some View {
         let lookup = Lookup(accounts: accounts, categories: categories)
         let totals = Finance.totals(movements)
         let total = category.kind == .expense ? totals.expense : totals.income
-        let title = category.kind == .expense ? "Gastos" : "Ingresos"
+        let periodTitle = periodRange.map { Fmt.monthYear($0.start).capitalized }
+        let title = periodRange == nil
+            ? (category.kind == .expense ? "Gastos registrados" : "Ingresos registrados")
+            : "Gastos · \(periodTitle ?? "")"
         let tint = category.kind == .expense ? palette.negative : palette.positive
 
         ScrollView {
@@ -38,16 +46,16 @@ struct CategoryMovementsView: View {
                 .card()
 
                 MetricTile(
-                    title: "\(title) registrados",
+                    title: title,
                     cents: total,
                     symbol: category.kind == .expense ? "arrow.up.right" : "arrow.down.left",
                     tint: tint
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(title: "Todos los movimientos")
+                    SectionHeader(title: periodRange == nil ? "Todos los movimientos" : "Gastos del periodo")
                     if movements.isEmpty {
-                        Text("Todavía no hay movimientos en esta categoría.")
+                        Text(periodRange == nil ? "Todavía no hay movimientos en esta categoría." : "No hay gastos de esta categoría en el periodo.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)

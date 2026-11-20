@@ -216,18 +216,21 @@ struct BudgetsView: View {
 
         return VStack(spacing: 8) {
             HStack(spacing: 10) {
-                IconBadge(symbol: row.icon, colorHex: row.colorHex, size: 34)
-                Group {
-                    if let budget = row.budget {
-                        Button {
-                            budgetToEdit = budget
-                            showingBudgetForm = true
-                        } label: {
+                if let category = row.category {
+                    NavigationLink {
+                        CategoryMovementsView(category: category, periodRange: monthRange)
+                    } label: {
+                        HStack(spacing: 10) {
+                            IconBadge(symbol: row.icon, colorHex: row.colorHex, size: 34)
                             rowTitle(row, limit: limit, exceeded: exceeded)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Editar presupuesto de \(row.name)")
-                    } else {
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Ver gastos de \(row.name) de este mes")
+                } else {
+                    HStack(spacing: 10) {
+                        IconBadge(symbol: row.icon, colorHex: row.colorHex, size: 34)
                         rowTitle(row, limit: limit, exceeded: exceeded)
                     }
                 }
