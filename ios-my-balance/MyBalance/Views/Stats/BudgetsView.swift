@@ -21,6 +21,7 @@ struct BudgetsView: View {
 
     @State private var showingBudgetForm = false
     @State private var budgetToEdit: Budget?
+    @State private var budgetCategoryID: UUID?
 
     private var monthRange: DateRange { DateRange.month(.now) }
     private var visibleBudgets: [Budget] {
@@ -74,6 +75,7 @@ struct BudgetsView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     budgetToEdit = nil
+                    budgetCategoryID = nil
                     showingBudgetForm = true
                 } label: {
                     Image(systemName: "plus")
@@ -83,8 +85,11 @@ struct BudgetsView: View {
                 .accessibilityLabel("Añadir presupuesto")
             }
         }
-        .sheet(isPresented: $showingBudgetForm, onDismiss: { budgetToEdit = nil }) {
-            BudgetFormView(budget: budgetToEdit)
+        .sheet(isPresented: $showingBudgetForm, onDismiss: {
+            budgetToEdit = nil
+            budgetCategoryID = nil
+        }) {
+            BudgetFormView(budget: budgetToEdit, initialCategoryID: budgetCategoryID)
         }
     }
 
@@ -171,6 +176,7 @@ struct BudgetsView: View {
                 actionTitle: canAddBudget ? "Añadir" : nil,
                 action: {
                     budgetToEdit = nil
+                    budgetCategoryID = nil
                     showingBudgetForm = true
                 }
             )
@@ -182,6 +188,7 @@ struct BudgetsView: View {
                         .foregroundStyle(.secondary)
                     Button {
                         budgetToEdit = nil
+                        budgetCategoryID = nil
                         showingBudgetForm = true
                     } label: {
                         Label("Crear presupuesto", systemImage: "plus.circle.fill")

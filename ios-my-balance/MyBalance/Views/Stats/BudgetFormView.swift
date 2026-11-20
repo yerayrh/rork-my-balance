@@ -3,6 +3,7 @@ import SwiftData
 
 struct BudgetFormView: View {
     var budget: Budget? = nil
+    var initialCategoryID: UUID? = nil
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -85,7 +86,7 @@ struct BudgetFormView: View {
                     categoryID = budget.categoryID
                     amount = Money.editString(budget.limitCents)
                 } else {
-                    categoryID = expenseCategories.first?.id
+                    categoryID = initialCategoryID ?? expenseCategories.first?.id
                 }
             }
             .alert("No se pudo guardar", isPresented: Binding(
