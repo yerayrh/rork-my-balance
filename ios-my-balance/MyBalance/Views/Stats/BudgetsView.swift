@@ -257,6 +257,23 @@ struct BudgetsView: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Opciones de presupuesto de \(row.name)")
+                } else if row.category != nil {
+                    Menu {
+                        Button {
+                            budgetToEdit = nil
+                            budgetCategoryID = row.category?.id
+                            showingBudgetForm = true
+                        } label: {
+                            Label("Añadir presupuesto", systemImage: "plus")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28, height: 34)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Opciones de presupuesto de \(row.name)")
                 }
             }
 
@@ -292,9 +309,11 @@ struct BudgetsView: View {
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(exceeded ? palette.negative : .primary)
-                Text(row.budget == nil ? "exceso" : "de \(Money.format(limit))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if row.budget != nil {
+                    Text("de \(Money.format(limit))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .contentShape(Rectangle())
