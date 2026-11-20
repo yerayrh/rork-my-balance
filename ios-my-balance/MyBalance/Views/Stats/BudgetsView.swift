@@ -33,19 +33,29 @@ struct BudgetsView: View {
         categories.contains { $0.kind == .expense && !budgetedCategoryIDs.contains($0.id) }
     }
     private var rows: [BudgetRow] {
-        visibleBudgets.compactMap { budget in
+        let budgetRows = visibleBudgets.compactMap { budget -> BudgetRow? in
             guard let category = categories.first(where: { $0.id == budget.categoryID }) else { return nil }
-            return BudgetRow(
-                budget: budget,
-                category: category,
-                spent: Finance.spent(in: category.id, movements: movements, range: monthRange)
-            )
+            return BudgetRow(budget: budget, category: category, spent: Finance.spent(in: category.id, movements: movements, range: monthRange))
+        }
+        let unbudgetedRows = categories
+            .filter { $0.kind == .expense && !budgetedCategoryIDs.contains($0.id) }
+            .compactMap { category -> BudgetRow? in
+                let spent = Finance.spent(in: category.id, movements: movements, range: monthRange)
+                guard spent > 0 else { return nil }
+                return BudgetRow(budget: nil, category: category, spent: spent)
+            }
+        let uncategorizedSpent = Finance.spentWithoutCategory(movements: movements, range: monthRange)
+        let uncategorizedRows = uncategorizedSpent > 0
+            ? [BudgetRow(budget: nil, category: nil, spent: uncategorizedSpent)]
+            : []
+        return (budgetRows + unbudgetedRows + uncategorizedRows).sorted {
+            ($0.category?.sortOrder ?? Int.max) < ($1.category?.sortOrder ?? Int.max)
         }
     }
     private var totalSpent: Int { rows.reduce(0) { $0 + $1.spent } }
-    private var totalLimit: Int { rows.reduce(0) { $0 + $1.budget.limitCents } }
-    private var totalOverage: Int { rows.reduce(0) { $0 + max(0, $1.spent - $1.budget.limitCents) } }
-    private var exceededCount: Int { rows.filter { $0.spent > $0.budget.limitCents }.count }
+    private var totalLimit: Int { rows.reduce(0) { $0 + $1.limitCents } }
+    private var totalOverage: Int { rows.reduce(0) { $0 + max(0, $1.spent - $1.limitCents) } }
+    private var exceededCount: Int { rows.filter { $0.spent > $0.limitCents }.count }
 
     var body: some View {
         ScrollView {
@@ -199,63 +209,55 @@ struct BudgetsView: View {
     }
 
     private func budgetRow(_ row: BudgetRow) -> some View {
-        let limit = row.budget.limitCents
-        let ratio = limit > 0 ? Double(row.spent) / Double(limit) : 0
+        let limit = row.limitCents
+        let ratio = limit > 0 ? Double(row.spent) / Double(limit) : 1
         let exceeded = row.spent > limit
-        let fill = exceeded ? palette.negative : Color(hex: row.category.colorHex)
+        let fill = exceeded ? palette.negative : Color(hex: row.colorHex)
 
         return VStack(spacing: 8) {
             HStack(spacing: 10) {
-                IconBadge(symbol: row.category.icon, colorHex: row.category.colorHex, size: 34)
-                Button {
-                    budgetToEdit = row.budget
-                    showingBudgetForm = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Text(row.category.name)
+                IconBadge(symbol: row.icon, colorHex: row.colorHex, size: 34)
+                Group {
+                    if let budget = row.budget {
+                        Button {
+                            budgetToEdit = budget
+                            showingBudgetForm = true
+                        } label: {
+                            rowTitle(row, limit: limit, exceeded: exceeded)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Editar presupuesto de \(row.name)")
+                    } else {
+                        rowTitle(row, limit: limit, exceeded: exceeded)
+                    }
+                }
+                if let budget = row.budget {
+                    Menu {
+                        Button {
+                            budgetToEdit = budget
+                            showingBudgetForm = true
+                        } label: {
+                            Label("Editar", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            context.delete(budget)
+                            do { try context.save() }
+                            catch {
+                                context.rollback()
+                                errorCenter.message = error.localizedDescription
+                            }
+                        } label: {
+                            Label("Eliminar", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
                             .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        VStack(alignment: .trailing, spacing: 0) {
-                            Text(Money.format(row.spent))
-                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(exceeded ? palette.negative : .primary)
-                            Text("de \(Money.format(limit))")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28, height: 34)
+                            .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .accessibilityLabel("Opciones de presupuesto de \(row.name)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Editar presupuesto de \(row.category.name)")
-
-                Menu {
-                    Button {
-                        budgetToEdit = row.budget
-                        showingBudgetForm = true
-                    } label: {
-                        Label("Editar", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        context.delete(row.budget)
-                        do { try context.save() }
-                        catch {
-                            context.rollback()
-                            errorCenter.message = error.localizedDescription
-                        }
-                    } label: {
-                        Label("Eliminar", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 34)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Opciones de presupuesto de \(row.category.name)")
             }
 
             GeometryReader { geometry in
@@ -268,14 +270,40 @@ struct BudgetsView: View {
                     }
             }
             .frame(height: 5)
-            .accessibilityLabel("\(Int(ratio * 100)) por ciento del presupuesto usado")
+            .accessibilityLabel(limit > 0 ? "\(Int(ratio * 100)) por ciento del presupuesto usado" : "Gasto sin presupuesto: exceso de \(Money.format(row.spent))")
         }
+    }
+
+    private func rowTitle(_ row: BudgetRow, limit: Int, exceeded: Bool) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                if row.budget == nil {
+                    Text("Sin presupuesto")
+                        .font(.caption2)
+                        .foregroundStyle(palette.negative)
+                }
+            }
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(Money.format(row.spent))
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(exceeded ? palette.negative : .primary)
+                Text(row.budget == nil ? "exceso" : "de \(Money.format(limit))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     private var chartSlices: [BudgetChartSlice] {
         var slices: [BudgetChartSlice] = []
-        let used = rows.reduce(0) { $0 + min($1.spent, $1.budget.limitCents) }
-        let remaining = rows.reduce(0) { $0 + max(0, $1.budget.limitCents - $1.spent) }
+        let used = rows.reduce(0) { $0 + min($1.spent, $1.limitCents) }
+        let remaining = rows.reduce(0) { $0 + max(0, $1.limitCents - $1.spent) }
         if used > 0 { slices.append(BudgetChartSlice(id: "used", cents: used, color: palette.accent)) }
         if remaining > 0 { slices.append(BudgetChartSlice(id: "remaining", cents: remaining, color: palette.accent.opacity(0.16))) }
         if totalOverage > 0 { slices.append(BudgetChartSlice(id: "over", cents: totalOverage, color: palette.negative)) }
@@ -289,10 +317,14 @@ struct BudgetsView: View {
 }
 
 private struct BudgetRow: Identifiable {
-    let budget: Budget
-    let category: MovementCategory
+    let budget: Budget?
+    let category: MovementCategory?
     let spent: Int
-    var id: UUID { budget.id }
+    var id: String { category?.id.uuidString ?? "uncategorized" }
+    var limitCents: Int { budget?.limitCents ?? 0 }
+    var name: String { category?.name ?? "Sin categoría" }
+    var icon: String { category?.icon ?? "questionmark.circle.fill" }
+    var colorHex: String { category?.colorHex ?? "#94A3B8" }
 }
 
 private struct BudgetChartSlice: Identifiable {

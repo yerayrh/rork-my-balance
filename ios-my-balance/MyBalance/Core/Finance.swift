@@ -226,4 +226,10 @@ enum Finance {
             .filter { $0.kind == .expense }
             .reduce(0) { $0 + $1.amountCents }
     }
+
+    static func spentWithoutCategory(movements: [Movement], range: DateRange) -> Int {
+        statMovements(movements, range: range)
+            .filter { $0.kind == .expense && $0.categoryID == nil }
+            .reduce(0) { $0 + $1.amountCents }
+    }
 }
